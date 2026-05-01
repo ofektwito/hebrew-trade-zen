@@ -75,29 +75,52 @@ export function buildChatGPTSummary(trade: any): string {
 }
 
 export function buildDailyReviewChatGPT(review: any, trades: any[]): string {
+  const totalNet = trades.reduce((sum, trade) => sum + (trade.net_pnl ?? 0), 0);
+  const winningTrades = trades.filter((trade) => (trade.net_pnl ?? 0) > 0).length;
+  const winRate = trades.length ? (winningTrades / trades.length) * 100 : 0;
+
   const lines = [
-    `=== סקירת מסחר יומית ל-ChatGPT ===`,
     `תאריך: ${review.review_date}`,
-    `Net P&L יומי: ${fmtMoney(review.total_pnl)}`,
-    `מספר עסקאות: ${review.trades_count ?? trades.length}`,
-    `משמעת: ${review.discipline_score}/10  ביצוע: ${review.execution_score}/10  שליטה רגשית: ${review.emotional_score}/10`,
+    `P&L יומי: ${fmtMoney(review.total_pnl ?? totalNet)}`,
+    `מספר טריידים: ${review.trades_count ?? trades.length}`,
+    `Win Rate: ${winRate.toFixed(0)}%`,
     `Catalyst מרכזי: ${review.main_catalyst ?? "—"}`,
-    `הקשר שוק: ${review.market_context ?? "—"}`,
+    `מצב שוק: ${review.market_context ?? "—"}`,
     ``,
-    `--- עסקאות ---`,
-    ...trades.map((t, i) => `${i + 1}) ${t.instrument} ${t.direction} x${t.position_size} | כניסה ${t.entry_price} → יציאה ${t.exit_price} | Net ${fmtMoney(t.net_pnl)} | Setup: ${t.setup_type ?? "—"} | טעות: ${t.mistake_type ?? "—"}`),
+    `עסקאות:`,
+    ...(trades.length
+      ? trades.flatMap((t, i) => [
+          `טרייד ${i + 1}:`,
+          `- כיוון: ${t.direction ?? "—"}`,
+          `- נכס: ${[t.instrument, t.contract_name].filter(Boolean).join(" / ") || "—"}`,
+          `- כניסה: ${t.entry_time ?? "—"}`,
+          `- יציאה: ${t.exit_time ?? "—"}`,
+          `- גודל: ${t.position_size ?? "—"}`,
+          `- מחיר כניסה: ${t.entry_price ?? "—"}`,
+          `- מחיר יציאה: ${t.exit_price ?? "—"}`,
+          `- נקודות: ${fmtPoints(t.points)}`,
+          `- P&L: ${fmtMoney(t.net_pnl)}`,
+          `- Setup: ${t.setup_type ?? "—"}`,
+          `- טעות: ${t.mistake_type ?? "—"}`,
+          `- עבדתי לפי התוכנית: ${t.followed_plan ?? "—"}`,
+          `- לקח: ${t.lesson ?? "—"}`,
+          ``,
+        ])
+      : [`אין טריידים מתועדים ביום הזה.`, ``]),
     ``,
-    `מה עשיתי טוב: ${review.did_well ?? ""}`,
-    `מה עשיתי לא טוב: ${review.did_wrong ?? ""}`,
-    `לקחים: ${review.lessons ?? ""}`,
-    `כלל למחר: ${review.rule_for_tomorrow ?? ""}`,
-    `להקטין גודל פוזיציה מחר: ${review.reduce_size_tomorrow ? "כן" : "לא"}`,
-    `סיכום סופי: ${review.final_summary ?? ""}`,
+    `סיכום יומי:`,
+    `- מה עשיתי טוב: ${review.did_well ?? ""}`,
+    `- מה עשיתי לא טוב: ${review.did_wrong ?? ""}`,
+    `- הלקח המרכזי: ${review.lessons ?? ""}`,
+    `- חוק למחר: ${review.rule_for_tomorrow ?? ""}`,
+    `- האם להקטין גודל מחר: ${review.reduce_size_tomorrow ? "כן" : "לא"}`,
+    `- ציון משמעת: ${review.discipline_score ?? "—"}/10`,
+    `- ציון ביצוע: ${review.execution_score ?? "—"}/10`,
+    `- ציון שליטה רגשית: ${review.emotional_score ?? "—"}/10`,
     ``,
     `שאלות ל-ChatGPT:`,
-    `1. אילו דפוסים אתה מזהה בעסקאות היום?`,
-    `2. אילו טעויות פגעו הכי הרבה ב-P&L?`,
-    `3. אילו 1-2 כללים פרקטיים כדאי להוסיף למחר?`,
+    `1. אילו דפוסים אתה מזהה ביום המסחר הזה, ומה הדבר הכי חשוב לשפר מחר?`,
+    `2. אילו טעויות או חוזקות השפיעו הכי הרבה על ה-P&L, ואיזה כלל פרקטי כדאי להוסיף?`,
   ];
   return lines.join("\n");
 }

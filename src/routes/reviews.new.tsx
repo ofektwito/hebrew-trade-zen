@@ -145,19 +145,19 @@ function NewReview() {
         <h3 className="text-sm font-bold text-primary">רפלקציה</h3>
         <Field label="מה עשיתי טוב"><Textarea rows={2} value={f.did_well} onChange={(e) => set("did_well", e.target.value)} /></Field>
         <Field label="מה עשיתי לא טוב"><Textarea rows={2} value={f.did_wrong} onChange={(e) => set("did_wrong", e.target.value)} /></Field>
-        <Field label="לקחים שלמדתי"><Textarea rows={2} value={f.lessons} onChange={(e) => set("lessons", e.target.value)} /></Field>
-        <Field label="כלל אחד לשמירה מחר"><Textarea rows={2} value={f.rule_for_tomorrow} onChange={(e) => set("rule_for_tomorrow", e.target.value)} /></Field>
+        <Field label="מה הלקח המרכזי?"><Textarea rows={2} value={f.lessons} onChange={(e) => set("lessons", e.target.value)} /></Field>
+        <Field label="איזה חוק אני לוקח למחר?"><Textarea rows={2} value={f.rule_for_tomorrow} onChange={(e) => set("rule_for_tomorrow", e.target.value)} /></Field>
         <div className="flex items-center justify-between rounded-lg bg-input/40 px-3 py-2">
-          <Label className="text-sm">להקטין גודל פוזיציה מחר?</Label>
+          <Label className="text-sm">האם צריך להקטין גודל מחר?</Label>
           <Switch checked={f.reduce_size_tomorrow} onCheckedChange={(v) => set("reduce_size_tomorrow", v)} />
         </div>
       </Card>
 
       <Card className="p-4 gradient-card space-y-3">
-        <h3 className="text-sm font-bold text-primary">ציונים (1-10)</h3>
-        <ScoreField label="משמעת" value={f.discipline_score} onChange={(v) => set("discipline_score", v)} />
-        <ScoreField label="ביצוע" value={f.execution_score} onChange={(v) => set("execution_score", v)} />
-        <ScoreField label="שליטה רגשית" value={f.emotional_score} onChange={(v) => set("emotional_score", v)} />
+        <h3 className="text-sm font-bold text-primary">ציונים אחרי הסגירה</h3>
+        <ScoreField label="ציון משמעת 1-10" value={f.discipline_score} onChange={(v) => set("discipline_score", v)} />
+        <ScoreField label="ציון ביצוע 1-10" value={f.execution_score} onChange={(v) => set("execution_score", v)} />
+        <ScoreField label="ציון שליטה רגשית 1-10" value={f.emotional_score} onChange={(v) => set("emotional_score", v)} />
       </Card>
 
       <Card className="p-4 gradient-card space-y-3">
