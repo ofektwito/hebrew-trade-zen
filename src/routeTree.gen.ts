@@ -9,38 +9,147 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ImportRouteImport } from './routes/import'
+import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ReviewsIndexRouteImport } from './routes/reviews.index'
+import { Route as TradesNewRouteImport } from './routes/trades.new'
+import { Route as TradesTradeIdRouteImport } from './routes/trades.$tradeId'
+import { Route as ReviewsNewRouteImport } from './routes/reviews.new'
+import { Route as ReviewsReviewIdRouteImport } from './routes/reviews.$reviewId'
 
+const ImportRoute = ImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnalyticsRoute = AnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReviewsIndexRoute = ReviewsIndexRouteImport.update({
+  id: '/reviews/',
+  path: '/reviews/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TradesNewRoute = TradesNewRouteImport.update({
+  id: '/trades/new',
+  path: '/trades/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TradesTradeIdRoute = TradesTradeIdRouteImport.update({
+  id: '/trades/$tradeId',
+  path: '/trades/$tradeId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReviewsNewRoute = ReviewsNewRouteImport.update({
+  id: '/reviews/new',
+  path: '/reviews/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReviewsReviewIdRoute = ReviewsReviewIdRouteImport.update({
+  id: '/reviews/$reviewId',
+  path: '/reviews/$reviewId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
+  '/import': typeof ImportRoute
+  '/reviews/$reviewId': typeof ReviewsReviewIdRoute
+  '/reviews/new': typeof ReviewsNewRoute
+  '/trades/$tradeId': typeof TradesTradeIdRoute
+  '/trades/new': typeof TradesNewRoute
+  '/reviews/': typeof ReviewsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
+  '/import': typeof ImportRoute
+  '/reviews/$reviewId': typeof ReviewsReviewIdRoute
+  '/reviews/new': typeof ReviewsNewRoute
+  '/trades/$tradeId': typeof TradesTradeIdRoute
+  '/trades/new': typeof TradesNewRoute
+  '/reviews': typeof ReviewsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
+  '/import': typeof ImportRoute
+  '/reviews/$reviewId': typeof ReviewsReviewIdRoute
+  '/reviews/new': typeof ReviewsNewRoute
+  '/trades/$tradeId': typeof TradesTradeIdRoute
+  '/trades/new': typeof TradesNewRoute
+  '/reviews/': typeof ReviewsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/analytics'
+    | '/import'
+    | '/reviews/$reviewId'
+    | '/reviews/new'
+    | '/trades/$tradeId'
+    | '/trades/new'
+    | '/reviews/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/analytics'
+    | '/import'
+    | '/reviews/$reviewId'
+    | '/reviews/new'
+    | '/trades/$tradeId'
+    | '/trades/new'
+    | '/reviews'
+  id:
+    | '__root__'
+    | '/'
+    | '/analytics'
+    | '/import'
+    | '/reviews/$reviewId'
+    | '/reviews/new'
+    | '/trades/$tradeId'
+    | '/trades/new'
+    | '/reviews/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnalyticsRoute: typeof AnalyticsRoute
+  ImportRoute: typeof ImportRoute
+  ReviewsReviewIdRoute: typeof ReviewsReviewIdRoute
+  ReviewsNewRoute: typeof ReviewsNewRoute
+  TradesTradeIdRoute: typeof TradesTradeIdRoute
+  TradesNewRoute: typeof TradesNewRoute
+  ReviewsIndexRoute: typeof ReviewsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/import': {
+      id: '/import'
+      path: '/import'
+      fullPath: '/import'
+      preLoaderRoute: typeof ImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/analytics': {
+      id: '/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +157,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reviews/': {
+      id: '/reviews/'
+      path: '/reviews'
+      fullPath: '/reviews/'
+      preLoaderRoute: typeof ReviewsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/trades/new': {
+      id: '/trades/new'
+      path: '/trades/new'
+      fullPath: '/trades/new'
+      preLoaderRoute: typeof TradesNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/trades/$tradeId': {
+      id: '/trades/$tradeId'
+      path: '/trades/$tradeId'
+      fullPath: '/trades/$tradeId'
+      preLoaderRoute: typeof TradesTradeIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reviews/new': {
+      id: '/reviews/new'
+      path: '/reviews/new'
+      fullPath: '/reviews/new'
+      preLoaderRoute: typeof ReviewsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reviews/$reviewId': {
+      id: '/reviews/$reviewId'
+      path: '/reviews/$reviewId'
+      fullPath: '/reviews/$reviewId'
+      preLoaderRoute: typeof ReviewsReviewIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnalyticsRoute: AnalyticsRoute,
+  ImportRoute: ImportRoute,
+  ReviewsReviewIdRoute: ReviewsReviewIdRoute,
+  ReviewsNewRoute: ReviewsNewRoute,
+  TradesTradeIdRoute: TradesTradeIdRoute,
+  TradesNewRoute: TradesNewRoute,
+  ReviewsIndexRoute: ReviewsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
