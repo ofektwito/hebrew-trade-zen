@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReviewsIndexRouteImport } from './routes/reviews.index'
 import { Route as TradesNewRouteImport } from './routes/trades.new'
@@ -16,6 +17,11 @@ import { Route as TradesTradeIdRouteImport } from './routes/trades.$tradeId'
 import { Route as ReviewsNewRouteImport } from './routes/reviews.new'
 import { Route as ReviewsReviewIdRouteImport } from './routes/reviews.$reviewId'
 
+const AnalyticsRoute = AnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -49,6 +55,7 @@ const ReviewsReviewIdRoute = ReviewsReviewIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
   '/reviews/new': typeof ReviewsNewRoute
   '/trades/$tradeId': typeof TradesTradeIdRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
   '/reviews/new': typeof ReviewsNewRoute
   '/trades/$tradeId': typeof TradesTradeIdRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
   '/reviews/new': typeof ReviewsNewRoute
   '/trades/$tradeId': typeof TradesTradeIdRoute
@@ -76,6 +85,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/analytics'
     | '/reviews/$reviewId'
     | '/reviews/new'
     | '/trades/$tradeId'
@@ -84,6 +94,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/analytics'
     | '/reviews/$reviewId'
     | '/reviews/new'
     | '/trades/$tradeId'
@@ -92,6 +103,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/analytics'
     | '/reviews/$reviewId'
     | '/reviews/new'
     | '/trades/$tradeId'
@@ -101,6 +113,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnalyticsRoute: typeof AnalyticsRoute
   ReviewsReviewIdRoute: typeof ReviewsReviewIdRoute
   ReviewsNewRoute: typeof ReviewsNewRoute
   TradesTradeIdRoute: typeof TradesTradeIdRoute
@@ -110,6 +123,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/analytics': {
+      id: '/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -157,6 +177,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnalyticsRoute: AnalyticsRoute,
   ReviewsReviewIdRoute: ReviewsReviewIdRoute,
   ReviewsNewRoute: ReviewsNewRoute,
   TradesTradeIdRoute: TradesTradeIdRoute,
@@ -166,12 +187,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { fmtMoney, isRuleViolation, pnlClass } from "@/lib/trade-utils";
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, CartesianGrid } from "recharts";
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, Cell, CartesianGrid } from "recharts";
 
 export const Route = createFileRoute("/analytics")({
   component: Analytics,
@@ -147,7 +147,7 @@ function BreakdownCard({ title, data }: { title: string; data: { name: string; v
           <Tooltip contentStyle={{ background: "#1d2230", border: "1px solid #333", borderRadius: 8 }} formatter={(v: any) => fmtMoney(v)} />
           <Bar dataKey="value" radius={[0, 4, 4, 0]}>
             {data.map((d, i) => (
-              <Bar key={i} dataKey="value" fill={d.value >= 0 ? "oklch(0.74 0.18 145)" : "oklch(0.65 0.23 25)"} />
+              <Cell key={i} fill={d.value >= 0 ? "oklch(0.74 0.18 145)" : "oklch(0.65 0.23 25)"} />
             ))}
           </Bar>
         </BarChart>
