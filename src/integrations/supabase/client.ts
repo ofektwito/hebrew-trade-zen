@@ -5,7 +5,7 @@ import type { Database } from './types';
 function createSupabaseClient() {
   // Use import.meta.env for client-side (Vite build-time replacement)
   // Fall back to process.env for SSR (server-side rendering)
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const SUPABASE_URL = normalizeSupabaseUrl(import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL);
   const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
@@ -13,7 +13,7 @@ function createSupabaseClient() {
       ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
       ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
     ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Connect Supabase in Lovable Cloud.`;
+    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Check your local .env file.`;
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }
@@ -25,6 +25,11 @@ function createSupabaseClient() {
       autoRefreshToken: true,
     }
   });
+}
+
+function normalizeSupabaseUrl(url?: string) {
+  if (!url) return url;
+  return url.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
 }
 
 let _supabase: ReturnType<typeof createSupabaseClient> | undefined;

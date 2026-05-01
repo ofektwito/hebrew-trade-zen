@@ -62,6 +62,12 @@ function NewReview() {
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
 
   useEffect(() => {
+    if (date) {
+      setF((p: any) => (p.review_date === date ? p : { ...p, review_date: date }));
+    }
+  }, [date]);
+
+  useEffect(() => {
     (async () => {
       const { data: trades } = await supabase.from("trades").select("*").eq("trade_date", f.review_date);
       const t = trades ?? [];
