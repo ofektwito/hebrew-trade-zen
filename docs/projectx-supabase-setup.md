@@ -70,3 +70,28 @@ Still useful from ProjectX docs or samples:
 ## Sync Invocation
 
 Production should call `projectx-sync` from a scheduled job or trusted backend using the `x-projectx-sync-secret` header. The frontend does not expose or send ProjectX credentials and only reads `sync_status` plus normalized `trades`.
+
+## Automatic Sync Schedule
+
+Automatic sync is configured through Supabase Cron (`pg_cron`) and `pg_net`.
+
+Migration `20260502093000_projectx_scheduled_sync.sql` creates:
+
+- `public.invoke_projectx_sync_cron()`
+- `projectx-sync-market-hours`: every 5 minutes on weekdays during a broad US market-hours UTC window
+- `projectx-sync-off-hours-weekday`: hourly outside that window
+- `projectx-sync-weekend-reconcile`: every 3 hours on weekends for late corrections
+
+The cron function reads only these Supabase Vault secrets:
+
+- `projectx_project_url`
+- `projectx_anon_key`
+- `projectx_sync_secret`
+
+Use the helper script to generate and set the shared sync secret and write the scheduling values into Vault without printing them:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup-projectx-cron.ps1
+```
+
+Do not call `projectx-sync` from the browser. The frontend should only read `sync_status`.

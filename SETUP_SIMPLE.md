@@ -85,3 +85,20 @@ foreach ($line in $envLines) {
 ```
 
 You still need to set `PROJECTX_SYNC_SECRET`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`.
+
+## Step 6: Configure automatic ProjectX sync
+
+After migrations and functions are deployed, configure Supabase Cron/Vault for automatic background sync:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup-projectx-cron.ps1
+```
+
+This script:
+
+- generates a strong `PROJECTX_SYNC_SECRET`
+- sets it as a Supabase Edge Function secret
+- stores only the scheduling values needed by Postgres Cron in Supabase Vault
+- does not print secret values
+
+The app does not expose sync controls. It only shows the passive sync status indicator.
