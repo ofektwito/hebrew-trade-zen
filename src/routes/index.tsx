@@ -65,14 +65,14 @@ function Dashboard() {
       }`}>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-wider opacity-80 text-white">P&L היום</p>
+            <p className="text-xs uppercase tracking-wider opacity-80 text-white">P&L יומי</p>
             <p className="text-4xl font-extrabold mt-1 text-white">{fmtMoney(totalNet)}</p>
             <p className="text-sm mt-1 text-white/85">
-              {status === "green" ? "🟢 יום ירוק" : status === "red" ? "🔴 יום אדום" : "⚪ Break-even"}
+              {status === "green" ? "יום ירוק" : status === "red" ? "יום אדום" : "Break-even"}
             </p>
           </div>
           <div className="text-right text-white/90">
-            <div className="text-xs">עסקאות</div>
+            <div className="text-xs">עסקאות היום</div>
             <div className="text-2xl font-bold">{trades.length}</div>
           </div>
         </div>
@@ -82,8 +82,8 @@ function Dashboard() {
       <div className="grid grid-cols-2 gap-3">
         <Stat label="Win Rate" value={`${winRate.toFixed(0)}%`} icon={<Target className="h-4 w-4" />} accent="primary" />
         <Stat label="Net" value={fmtMoney(totalNet)} pnl={totalNet} />
-        <Stat label="ממוצע רווח" value={fmtMoney(avgWin)} pnl={avgWin || null} />
-        <Stat label="ממוצע הפסד" value={fmtMoney(avgLoss)} pnl={avgLoss || null} />
+        <Stat label="רווח ממוצע" value={fmtMoney(avgWin)} pnl={avgWin || null} />
+        <Stat label="הפסד ממוצע" value={fmtMoney(avgLoss)} pnl={avgLoss || null} />
         <Stat label="עמלות" value={fmtMoney(totalComm)} icon={<Minus className="h-4 w-4" />} />
         <Stat label="ציון משמעת" value={`${disciplineAvg.toFixed(1)}/10`} icon={<Trophy className="h-4 w-4" />} accent="primary" />
       </div>
@@ -92,7 +92,7 @@ function Dashboard() {
         <Card className="p-3 bg-loss/10 border-loss/40 flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-loss" />
           <span className="text-sm">
-            <span className="font-bold text-loss">{violations}</span> הפרות חוקים היום
+            <span className="font-bold text-loss">{violations}</span> חריגות מהתוכנית היום
           </span>
         </Card>
       )}
@@ -104,12 +104,12 @@ function Dashboard() {
           <Link to="/trades/new" className="text-xs text-primary font-semibold">+ עסקה חדשה</Link>
         </div>
         {loading ? (
-          <Card className="p-6 text-center text-sm text-muted-foreground">טוען...</Card>
+          <Card className="p-6 text-center text-sm text-muted-foreground">טוען נתונים...</Card>
         ) : recent.length === 0 ? (
           <Card className="p-8 text-center">
-            <p className="text-sm text-muted-foreground mb-3">עוד אין עסקאות</p>
+            <p className="text-sm text-muted-foreground mb-3">עדיין אין עסקאות ביומן</p>
             <Link to="/trades/new" className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
-              הוסף עסקה ראשונה
+              הוספת עסקה ראשונה
             </Link>
           </Card>
         ) : (
@@ -150,7 +150,7 @@ function TradeRow({ t }: { t: Trade }) {
             <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-muted-foreground">
               <span>{t.trade_date}</span>
               {t.setup_type && <Badge variant="secondary" className="text-[10px] py-0 px-1.5">{t.setup_type}</Badge>}
-              {isRuleViolation(t) && <Badge className="bg-loss/20 text-loss border-0 text-[10px] py-0 px-1.5">⚠ הפרה</Badge>}
+              {isRuleViolation(t) && <Badge className="bg-loss/20 text-loss border-0 text-[10px] py-0 px-1.5">חריגה</Badge>}
             </div>
           </div>
         </div>

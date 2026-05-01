@@ -145,7 +145,7 @@ function ImportPage() {
   function onParse() {
     const t = parseTopstepCSV(csv);
     if (t.length === 0) {
-      toast.error("לא נמצאו עסקאות בקובץ. ודא שמדובר ב-CSV של order history");
+      toast.error("לא נמצאו עסקאות ב-CSV. ודא שזה קובץ order history תקין");
       return;
     }
     setParsed(t);
@@ -158,13 +158,13 @@ function ImportPage() {
 
   async function onSave() {
     const toSave = parsed.filter((t) => t.selected);
-    if (!toSave.length) return toast.error("בחר לפחות עסקה אחת");
+    if (!toSave.length) return toast.error("יש לבחור לפחות עסקה אחת");
     setSaving(true);
     try {
       const rows = toSave.map(({ selected, ...rest }) => ({ ...rest, order_type: "Market" }));
       const { error } = await supabase.from("trades").insert(rows);
       if (error) throw error;
-      toast.success(`נשמרו ${rows.length} עסקאות`);
+      toast.success(`נשמרו ${rows.length} עסקאות ביומן`);
       navigate({ to: "/" });
     } catch (e: any) {
       toast.error(e.message);
@@ -177,20 +177,20 @@ function ImportPage() {
 
   return (
     <div className="space-y-4 pb-4">
-      <h1 className="text-xl font-bold">ייבוא מ-TopstepX</h1>
+      <h1 className="text-xl font-bold">ייבוא עסקאות מ-CSV</h1>
 
       <Card className="p-4 gradient-card space-y-3">
         <div>
-          <Label className="text-xs text-muted-foreground">הדבק כאן CSV של order history</Label>
+          <Label className="text-xs text-muted-foreground">הדבקת CSV של order history</Label>
           <Textarea rows={6} value={csv} onChange={(e) => setCsv(e.target.value)} placeholder="Symbol,Side,Qty,Price,Time,Commission..." className="font-mono text-xs mt-1" />
         </div>
-        <Button onClick={onParse} className="w-full"><Upload className="h-4 w-4 ml-2" /> פענח עסקאות</Button>
+        <Button onClick={onParse} className="w-full"><Upload className="h-4 w-4 ml-2" /> פענוח עסקאות</Button>
       </Card>
 
       {parsed.length > 0 && (
         <>
           <Card className="p-3 gradient-card border-primary/30 flex items-center justify-between">
-            <span className="text-sm">סה״כ נבחרו: <span className="font-bold">{parsed.filter((t) => t.selected).length}</span></span>
+            <span className="text-sm">נבחרו לשמירה: <span className="font-bold">{parsed.filter((t) => t.selected).length}</span></span>
             <span className={`font-bold ${pnlClass(total)}`}>{fmtMoney(total)}</span>
           </Card>
 
@@ -210,14 +210,14 @@ function ImportPage() {
           </div>
 
           <Button onClick={onSave} disabled={saving} className="w-full h-12 font-bold">
-            <Save className="h-4 w-4 ml-2" /> {saving ? "שומר..." : `שמור ${parsed.filter((t) => t.selected).length} עסקאות`}
+            <Save className="h-4 w-4 ml-2" /> {saving ? "שומר..." : `שמירת ${parsed.filter((t) => t.selected).length} עסקאות`}
           </Button>
         </>
       )}
 
       <Card className="p-3 gradient-card">
         <p className="text-xs text-muted-foreground">
-          הייבוא מצפה לעמודות: Symbol, Side (Buy/Sell), Qty, Price, Time, Commission. הוא מבצע FIFO matching של פילים פתוחים מול סוגרים, מזהה אוטומטית MNQ/MES/NQ/ES ומחשב P&L.
+          הייבוא מצפה לעמודות: Symbol, Side (Buy/Sell), Qty, Price, Time, Commission. הוא מבצע FIFO matching בין פילים פתוחים לסוגרים, מזהה אוטומטית MNQ/MES/NQ/ES ומחשב P&L.
         </p>
       </Card>
     </div>

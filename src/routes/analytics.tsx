@@ -25,8 +25,8 @@ function Analytics() {
 
   const stats = useMemo(() => computeStats(trades), [trades]);
 
-  if (loading) return <div className="text-center text-muted-foreground py-8">טוען...</div>;
-  if (trades.length === 0) return <Card className="p-8 text-center gradient-card text-muted-foreground">אין נתונים לניתוח</Card>;
+  if (loading) return <div className="text-center text-muted-foreground py-8">טוען ניתוח...</div>;
+  if (trades.length === 0) return <Card className="p-8 text-center gradient-card text-muted-foreground">עדיין אין עסקאות לניתוח</Card>;
 
   return (
     <div className="space-y-4 pb-4">
@@ -35,10 +35,10 @@ function Analytics() {
       <div className="grid grid-cols-2 gap-3">
         <Stat label="סה״כ Net" value={fmtMoney(stats.totalNet)} pnl={stats.totalNet} />
         <Stat label="Win Rate" value={`${stats.winRate.toFixed(0)}%`} accent />
-        <Stat label="ממוצע רווח" value={fmtMoney(stats.avgWin)} pnl={stats.avgWin || null} />
-        <Stat label="ממוצע הפסד" value={fmtMoney(stats.avgLoss)} pnl={stats.avgLoss || null} />
+        <Stat label="רווח ממוצע" value={fmtMoney(stats.avgWin)} pnl={stats.avgWin || null} />
+        <Stat label="הפסד ממוצע" value={fmtMoney(stats.avgLoss)} pnl={stats.avgLoss || null} />
         <Stat label="עסקאות" value={String(trades.length)} accent />
-        <Stat label="ימי הפסד מעל גבול" value={String(stats.dlLimitDays)} pnl={stats.dlLimitDays > 0 ? -1 : null} />
+        <Stat label="ימים מתחת למגבלת הפסד" value={String(stats.dlLimitDays)} pnl={stats.dlLimitDays > 0 ? -1 : null} />
       </div>
 
       <ChartCard title="P&L מצטבר">
@@ -53,18 +53,18 @@ function Analytics() {
         </ResponsiveContainer>
       </ChartCard>
 
-      <BreakdownCard title="P&L לפי מכשיר" data={stats.byInstrument} />
-      <BreakdownCard title="P&L לפי קטליסט" data={stats.byCatalyst} />
-      <BreakdownCard title="P&L לפי סטאפ" data={stats.bySetup} />
+      <BreakdownCard title="P&L לפי נכס" data={stats.byInstrument} />
+      <BreakdownCard title="P&L לפי Catalyst" data={stats.byCatalyst} />
+      <BreakdownCard title="P&L לפי Setup" data={stats.bySetup} />
       <BreakdownCard title="P&L לפי טעות" data={stats.byMistake} />
       <BreakdownCard title="P&L לפי איכות" data={stats.byQuality} />
 
       <Card className="p-4 gradient-card space-y-2">
         <h3 className="text-sm font-bold text-primary">תוכנית מול ביצוע</h3>
-        <Row k="ממוצע כשפעלתי לפי תוכנית" v={fmtMoney(stats.planFollowedAvg)} cls={pnlClass(stats.planFollowedAvg)} />
-        <Row k="ממוצע כשלא פעלתי לפי תוכנית" v={fmtMoney(stats.planNotAvg)} cls={pnlClass(stats.planNotAvg)} />
-        <Row k="הסטאפ הטוב ביותר" v={stats.bestSetup ?? "—"} />
-        <Row k="הסטאפ הגרוע ביותר" v={stats.worstSetup ?? "—"} />
+        <Row k="ממוצע כשפעלתי לפי התוכנית" v={fmtMoney(stats.planFollowedAvg)} cls={pnlClass(stats.planFollowedAvg)} />
+        <Row k="ממוצע כשחרגתי מהתוכנית" v={fmtMoney(stats.planNotAvg)} cls={pnlClass(stats.planNotAvg)} />
+        <Row k="ה-Setup הטוב ביותר" v={stats.bestSetup ?? "—"} />
+        <Row k="ה-Setup החלש ביותר" v={stats.worstSetup ?? "—"} />
         <Row k="הטעות הנפוצה ביותר" v={stats.mostCommonMistake ?? "—"} />
       </Card>
     </div>

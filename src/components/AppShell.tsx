@@ -2,9 +2,9 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { LayoutDashboard, PlusCircle, BookOpen, BarChart3, Upload } from "lucide-react";
 
 const tabs = [
-  { to: "/", label: "בית", icon: LayoutDashboard },
+  { to: "/", label: "יומן", icon: LayoutDashboard },
   { to: "/trades/new", label: "עסקה", icon: PlusCircle },
-  { to: "/reviews", label: "סיכום", icon: BookOpen },
+  { to: "/reviews", label: "סקירה", icon: BookOpen },
   { to: "/analytics", label: "ניתוח", icon: BarChart3 },
   { to: "/import", label: "ייבוא", icon: Upload },
 ] as const;
@@ -18,10 +18,10 @@ export function AppShell() {
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto max-w-2xl px-4 py-3 flex items-center justify-between">
           <Link to="/" className="font-bold tracking-tight text-lg">
-            <span className="text-primary">Trade</span>
-            <span className="text-foreground">Journal</span>
+            <span className="text-primary">יומן</span>
+            <span className="text-foreground"> מסחר</span>
           </Link>
-          <span className="text-xs text-muted-foreground">Futures · יומן אישי</span>
+          <span className="text-xs text-muted-foreground">Futures · מסחר אישי</span>
         </div>
       </header>
 

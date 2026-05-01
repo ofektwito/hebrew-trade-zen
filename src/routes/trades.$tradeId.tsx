@@ -31,7 +31,7 @@ function TradeDetails() {
     })();
   }, [tradeId]);
 
-  if (loading) return <div className="text-center text-muted-foreground py-8">טוען...</div>;
+  if (loading) return <div className="text-center text-muted-foreground py-8">טוען עסקה...</div>;
   if (!trade) return <div className="text-center text-muted-foreground py-8">העסקה לא נמצאה</div>;
 
   const profit = (trade.net_pnl ?? 0) > 0;
@@ -40,13 +40,13 @@ function TradeDetails() {
 
   async function copySummary() {
     await navigator.clipboard.writeText(buildChatGPTSummary(trade));
-    toast.success("הועתק ל-Clipboard ✨");
+    toast.success("הועתק ל-Clipboard");
   }
   async function onDelete() {
     if (!confirm("למחוק את העסקה?")) return;
     const { error } = await supabase.from("trades").delete().eq("id", tradeId);
     if (error) return toast.error(error.message);
-    toast.success("נמחקה");
+    toast.success("העסקה נמחקה");
     navigate({ to: "/" });
   }
 
@@ -55,7 +55,7 @@ function TradeDetails() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">פרטי עסקה</h1>
         <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/" })}>
-          <ArrowLeft className="h-4 w-4 ml-1 rotate-180" /> חזרה
+          <ArrowLeft className="h-4 w-4 ml-1 rotate-180" /> חזרה ליומן
         </Button>
       </div>
 
@@ -82,7 +82,7 @@ function TradeDetails() {
 
       {violation && (
         <Card className="p-3 bg-loss/10 border-loss/40 text-loss text-sm font-semibold flex items-center gap-2">
-          ⚠ עסקה זו סווגה כ-Rule Violation
+          עסקה זו סומנה כחריגה מהתוכנית
         </Card>
       )}
 
@@ -92,7 +92,7 @@ function TradeDetails() {
         <Row k="Gross P&L" v={fmtMoney(trade.gross_pnl)} />
         <Row k="עמלות" v={fmtMoney(trade.commissions)} />
         <Row k="P&L לחוזה" v={fmtMoney(pnlPerContract)} cls={pnlClass(pnlPerContract)} />
-        <Row k="פעל לפי תוכנית?" v={trade.followed_plan} />
+        <Row k="עבודה לפי תוכנית" v={trade.followed_plan} />
       </Card>
 
       <Card className="p-4 gradient-card space-y-2">
@@ -100,7 +100,7 @@ function TradeDetails() {
         <Row k="תאריך" v={trade.trade_date} />
         <Row k="שעת כניסה" v={trade.entry_time ?? "—"} />
         <Row k="שעת יציאה" v={trade.exit_time ?? "—"} />
-        <Row k="חשבון" v={trade.account_name ?? "—"} />
+        <Row k="חשבון מסחר" v={trade.account_name ?? "—"} />
         <Row k="חוזה" v={trade.contract_name ?? "—"} />
         <Row k="סוג הוראה" v={trade.order_type ?? "—"} />
         <Row k="כניסה" v={trade.entry_price} />
@@ -113,7 +113,7 @@ function TradeDetails() {
         <h3 className="text-sm font-bold text-primary">הקשר וביצוע</h3>
         <Row k="קטליסט" v={trade.catalyst ?? "—"} />
         <Row k="תנאי שוק" v={trade.market_condition ?? "—"} />
-        <Row k="סטאפ" v={trade.setup_type ?? "—"} />
+        <Row k="Setup" v={trade.setup_type ?? "—"} />
         <Row k="איכות" v={<Badge variant="secondary">{trade.trade_quality ?? "—"}</Badge>} />
         <Row k="טעות" v={trade.mistake_type ?? "—"} />
         <Row k="רגש" v={trade.emotional_state ?? "—"} />
@@ -121,7 +121,7 @@ function TradeDetails() {
 
       {(trade.notes || trade.lesson) && (
         <Card className="p-4 gradient-card space-y-3">
-          <h3 className="text-sm font-bold text-primary">הערות ולקח</h3>
+        <h3 className="text-sm font-bold text-primary">הערות ולקחים</h3>
           {trade.notes && <div><div className="text-xs text-muted-foreground mb-1">הערות</div><p className="text-sm whitespace-pre-wrap">{trade.notes}</p></div>}
           {trade.lesson && <div><div className="text-xs text-muted-foreground mb-1">לקח</div><p className="text-sm whitespace-pre-wrap">{trade.lesson}</p></div>}
         </Card>

@@ -113,16 +113,16 @@ function AddTrade() {
         if (!file) continue;
         const path = `${tradeId}/${kind}-${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
         const { error: upErr } = await supabase.storage.from("screenshots").upload(path, file);
-        if (upErr) { toast.error(`שגיאה בהעלאת ${kind}: ${upErr.message}`); continue; }
+        if (upErr) { toast.error(`שגיאה בהעלאת צילום ${kind}: ${upErr.message}`); continue; }
         const { data: pub } = supabase.storage.from("screenshots").getPublicUrl(path);
         await supabase.from("screenshots").insert({ trade_id: tradeId, kind, url: pub.publicUrl });
       }
 
-      toast.success("העסקה נשמרה!");
+      toast.success("העסקה נשמרה ביומן");
       router.invalidate();
       navigate({ to: "/trades/$tradeId", params: { tradeId } });
     } catch (err: any) {
-      toast.error(err.message ?? "שגיאה בשמירה");
+      toast.error(err.message ?? "שגיאה בשמירת העסקה");
     } finally {
       setSaving(false);
     }
@@ -133,7 +133,7 @@ function AddTrade() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">עסקה חדשה</h1>
         <Button type="button" variant="ghost" size="sm" onClick={() => navigate({ to: "/" })}>
-          <ArrowLeft className="h-4 w-4 ml-1 rotate-180" /> חזרה
+          <ArrowLeft className="h-4 w-4 ml-1 rotate-180" /> חזרה ליומן
         </Button>
       </div>
 
@@ -161,12 +161,12 @@ function AddTrade() {
           <Field label="שעת כניסה"><Input type="time" value={f.entry_time} onChange={(e) => set("entry_time", e.target.value)} /></Field>
           <Field label="שעת יציאה"><Input type="time" value={f.exit_time} onChange={(e) => set("exit_time", e.target.value)} /></Field>
         </div>
-        <Field label="חשבון"><Input value={f.account_name} onChange={(e) => set("account_name", e.target.value)} placeholder="Topstep 50K" /></Field>
+        <Field label="חשבון מסחר"><Input value={f.account_name} onChange={(e) => set("account_name", e.target.value)} placeholder="Topstep 50K" /></Field>
       </Section>
 
-      <Section title="מכשיר וכיוון">
+      <Section title="נכס וכיוון">
         <div className="grid grid-cols-2 gap-2">
-          <Field label="מכשיר">
+          <Field label="נכס">
             <Sel value={f.instrument} onChange={(v) => set("instrument", v)} options={[...INSTRUMENTS]} />
           </Field>
           <Field label="חוזה"><Input value={f.contract_name} onChange={(e) => set("contract_name", e.target.value)} placeholder="MNQH5" /></Field>
@@ -179,7 +179,7 @@ function AddTrade() {
         </div>
       </Section>
 
-      <Section title="מחירים">
+      <Section title="מחירים ו-P&L">
         <div className="grid grid-cols-2 gap-2">
           <Field label="כניסה"><Input type="number" step="0.01" value={f.entry_price} onChange={(e) => set("entry_price", e.target.value)} required /></Field>
           <Field label="יציאה"><Input type="number" step="0.01" value={f.exit_price} onChange={(e) => set("exit_price", e.target.value)} required /></Field>
@@ -196,10 +196,10 @@ function AddTrade() {
         <Field label="קטליסט">
           <Sel value={f.catalyst} onChange={(v) => set("catalyst", v)} options={[...CATALYSTS]} />
         </Field>
-        <Field label="תנאי שוק">
+        <Field label="מצב שוק">
           <Sel value={f.market_condition} onChange={(v) => set("market_condition", v)} options={[...MARKET_CONDITIONS]} />
         </Field>
-        <Field label="סוג סטאפ">
+        <Field label="Setup">
           <Sel value={f.setup_type} onChange={(v) => set("setup_type", v)} options={[...SETUP_TYPES]} />
         </Field>
       </Section>
@@ -208,18 +208,18 @@ function AddTrade() {
         <Field label="איכות עסקה">
           <Sel value={f.trade_quality} onChange={(v) => set("trade_quality", v)} options={[...TRADE_QUALITIES]} />
         </Field>
-        <Field label="האם פעלתי לפי התוכנית?">
+        <Field label="פעלתי לפי התוכנית?">
           <Sel value={f.followed_plan} onChange={(v) => set("followed_plan", v)} options={[...FOLLOWED_PLAN]} />
         </Field>
         <Field label="סוג טעות">
           <Sel value={f.mistake_type} onChange={(v) => set("mistake_type", v)} options={[...MISTAKE_TYPES]} />
         </Field>
-        <Field label="מצב רגשי לפני כניסה">
+        <Field label="מצב רגשי לפני הכניסה">
           <Sel value={f.emotional_state} onChange={(v) => set("emotional_state", v)} options={[...EMOTIONAL_STATES]} />
         </Field>
       </Section>
 
-      <Section title="הערות">
+      <Section title="הערות ולקחים">
         <Field label="הערות עסקה"><Textarea rows={3} value={f.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
         <Field label="לקח מהעסקה"><Textarea rows={2} value={f.lesson} onChange={(e) => set("lesson", e.target.value)} /></Field>
       </Section>
@@ -227,12 +227,12 @@ function AddTrade() {
       <Section title="צילומי מסך">
         <Uploader label="כניסה" file={files.entry} onChange={(file) => setFiles((p) => ({ ...p, entry: file }))} />
         <Uploader label="יציאה" file={files.exit} onChange={(file) => setFiles((p) => ({ ...p, exit: file }))} />
-        <Uploader label="פוסט-טרייד" file={files.post} onChange={(file) => setFiles((p) => ({ ...p, post: file }))} />
+        <Uploader label="אחרי העסקה" file={files.post} onChange={(file) => setFiles((p) => ({ ...p, post: file }))} />
       </Section>
 
       <Button type="submit" disabled={saving} className="w-full h-12 text-base font-bold">
         <Save className="h-4 w-4 ml-2" />
-        {saving ? "שומר..." : "שמור עסקה"}
+        {saving ? "שומר..." : "שמירת עסקה"}
       </Button>
     </form>
   );
@@ -270,7 +270,7 @@ function Uploader({ label, file, onChange }: { label: string; file?: File; onCha
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <label className="mt-1 flex items-center justify-center h-20 rounded-lg border-2 border-dashed border-border bg-input/40 cursor-pointer hover:border-primary/60 transition-colors">
         <input type="file" accept="image/*" className="hidden" onChange={(e) => onChange(e.target.files?.[0])} />
-        <span className="text-xs text-muted-foreground">{file ? `📎 ${file.name}` : "לחץ לבחירת תמונה"}</span>
+        <span className="text-xs text-muted-foreground">{file ? file.name : "בחירת תמונה"}</span>
       </label>
     </div>
   );

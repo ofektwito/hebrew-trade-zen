@@ -27,20 +27,20 @@ function ReviewsList() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">סיכומים יומיים</h1>
+        <h1 className="text-xl font-bold">סקירות יומיות</h1>
         <Link to="/reviews/new" search={{ date: today }}>
-          <Button size="sm"><Plus className="h-4 w-4 ml-1" /> חדש</Button>
+          <Button size="sm"><Plus className="h-4 w-4 ml-1" /> סקירה חדשה</Button>
         </Link>
       </div>
 
       {loading ? (
-        <Card className="p-6 text-center text-sm text-muted-foreground">טוען...</Card>
+        <Card className="p-6 text-center text-sm text-muted-foreground">טוען סקירות...</Card>
       ) : reviews.length === 0 ? (
         <Card className="p-8 text-center gradient-card">
           <BookOpen className="h-10 w-10 mx-auto text-primary mb-2" />
-          <p className="text-sm text-muted-foreground mb-3">עוד אין סיכומים יומיים</p>
+          <p className="text-sm text-muted-foreground mb-3">עדיין אין סקירות יומיות</p>
           <Link to="/reviews/new" search={{ date: today }}>
-            <Button>צור סיכום ראשון</Button>
+            <Button>יצירת סקירה ראשונה</Button>
           </Link>
         </Card>
       ) : (

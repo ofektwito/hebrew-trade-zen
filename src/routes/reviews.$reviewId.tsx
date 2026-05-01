@@ -31,17 +31,17 @@ function ReviewDetails() {
     })();
   }, [reviewId]);
 
-  if (loading) return <div className="text-center text-muted-foreground py-8">טוען...</div>;
-  if (!review) return <div className="text-center text-muted-foreground py-8">סיכום לא נמצא</div>;
+  if (loading) return <div className="text-center text-muted-foreground py-8">טוען סקירה...</div>;
+  if (!review) return <div className="text-center text-muted-foreground py-8">הסקירה לא נמצאה</div>;
 
   async function copyForChatGPT() {
     await navigator.clipboard.writeText(buildDailyReviewChatGPT(review, trades));
-    toast.success("הועתק ל-Clipboard ✨");
+    toast.success("הועתק ל-Clipboard");
   }
   async function onDelete() {
-    if (!confirm("למחוק את הסיכום?")) return;
+    if (!confirm("למחוק את הסקירה?")) return;
     await supabase.from("daily_reviews").delete().eq("id", reviewId);
-    toast.success("נמחק");
+    toast.success("הסקירה נמחקה");
     navigate({ to: "/reviews" });
   }
 
@@ -52,13 +52,13 @@ function ReviewDetails() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">{review.review_date}</h1>
         <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/reviews" })}>
-          <ArrowLeft className="h-4 w-4 ml-1 rotate-180" /> חזרה
+          <ArrowLeft className="h-4 w-4 ml-1 rotate-180" /> חזרה לסקירות
         </Button>
       </div>
 
       <Card className={`p-5 border-0 shadow-card ${profit ? "gradient-profit glow-profit" : "gradient-loss glow-loss"}`}>
         <div className="text-white">
-          <p className="text-xs uppercase tracking-wider opacity-80">P&L יומי</p>
+        <p className="text-xs uppercase tracking-wider opacity-80">P&L יומי</p>
           <p className="text-3xl font-extrabold">{fmtMoney(review.total_pnl)}</p>
           <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
             <Pill label="משמעת" value={`${review.discipline_score ?? "—"}/10`} />
@@ -69,28 +69,28 @@ function ReviewDetails() {
       </Card>
 
       <Button onClick={copyForChatGPT} className="w-full h-12 font-bold">
-        <Copy className="h-4 w-4 ml-2" /> Copy for ChatGPT Review
+        <Copy className="h-4 w-4 ml-2" /> העתקה לסקירת ChatGPT
       </Button>
 
       <Card className="p-4 gradient-card space-y-2">
-        <h3 className="text-sm font-bold text-primary">היום</h3>
+        <h3 className="text-sm font-bold text-primary">סיכום היום</h3>
         <Row k="עסקאות" v={review.trades_count ?? trades.length} />
-        <Row k="קטליסט" v={review.main_catalyst ?? "—"} />
+        <Row k="Catalyst" v={review.main_catalyst ?? "—"} />
         <Row k="הטובה ביותר" v={review.best_trade ?? "—"} />
         <Row k="הגרועה ביותר" v={review.worst_trade ?? "—"} />
-        <Row k="להקטין סייז מחר?" v={review.reduce_size_tomorrow ? "כן ✓" : "לא"} />
+        <Row k="להקטין גודל פוזיציה מחר?" v={review.reduce_size_tomorrow ? "כן" : "לא"} />
       </Card>
 
-      {review.market_context && <TextCard title="הקשר השוק" text={review.market_context} />}
+      {review.market_context && <TextCard title="הקשר שוק" text={review.market_context} />}
       {review.did_well && <TextCard title="מה עשיתי טוב" text={review.did_well} />}
       {review.did_wrong && <TextCard title="מה עשיתי לא טוב" text={review.did_wrong} />}
       {review.lessons && <TextCard title="לקחים" text={review.lessons} />}
-      {review.rule_for_tomorrow && <TextCard title="חוק למחר" text={review.rule_for_tomorrow} />}
+      {review.rule_for_tomorrow && <TextCard title="כלל למחר" text={review.rule_for_tomorrow} />}
       {review.final_summary && <TextCard title="סיכום סופי" text={review.final_summary} />}
 
       <Card className="p-4 gradient-card space-y-2">
         <h3 className="text-sm font-bold text-primary">עסקאות באותו יום ({trades.length})</h3>
-        {trades.length === 0 && <p className="text-xs text-muted-foreground">אין עסקאות בתאריך זה</p>}
+        {trades.length === 0 && <p className="text-xs text-muted-foreground">אין עסקאות בתאריך הזה</p>}
         {trades.map((t) => (
           <Link key={t.id} to="/trades/$tradeId" params={{ tradeId: t.id }}>
             <div className="flex items-center justify-between text-sm border-b border-border/40 last:border-0 py-2">
@@ -105,7 +105,7 @@ function ReviewDetails() {
       </Card>
 
       <Button variant="destructive" onClick={onDelete} className="w-full">
-        <Trash2 className="h-4 w-4 ml-2" /> מחק סיכום
+        <Trash2 className="h-4 w-4 ml-2" /> מחיקת סקירה
       </Button>
     </div>
   );
