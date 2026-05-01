@@ -22,6 +22,7 @@ import {
 type SyncRequest = {
   rangeStart?: string;
   rangeEnd?: string;
+  dryRun?: boolean;
 };
 
 serve(async (req) => {
@@ -32,27 +33,32 @@ serve(async (req) => {
 
   try {
     assertSyncSecret(req);
-    await updateSyncStatus(supabase, "syncing", "מסנכרן...");
-
     const body = req.method === "POST" ? ((await req.json().catch(() => ({}))) as SyncRequest) : {};
+    const dryRun = body.dryRun === true;
+    if (!dryRun) {
+      await updateSyncStatus(supabase, "syncing", "מסנכרן...");
+    }
+
     const now = new Date();
     const defaultStart = new Date(now);
-    defaultStart.setDate(defaultStart.getDate() - 7);
+    defaultStart.setDate(defaultStart.getDate() - (dryRun ? 1 : 7));
     const rangeStart = body.rangeStart ?? defaultStart.toISOString();
     const rangeEnd = body.rangeEnd ?? now.toISOString();
 
-    const { data: run, error: runError } = await supabase
-      .from("projectx_sync_runs")
-      .insert({
-        status: "running",
-        range_start: rangeStart,
-        range_end: rangeEnd,
-      })
-      .select("id")
-      .single();
+    if (!dryRun) {
+      const { data: run, error: runError } = await supabase
+        .from("projectx_sync_runs")
+        .insert({
+          status: "running",
+          range_start: rangeStart,
+          range_end: rangeEnd,
+        })
+        .select("id")
+        .single();
 
-    if (runError) throw runError;
-    runId = run.id;
+      if (runError) throw runError;
+      runId = run.id;
+    }
 
     const client = new ProjectXClient(readProjectXConfig());
     let accountIds = readProjectXAccountIds();
@@ -64,28 +70,62 @@ serve(async (req) => {
         throw new Error("לא נמצאו חשבונות ProjectX פעילים");
       }
       accountIds = accounts.map((account) => String(account.id));
-      accountConfigs = await upsertProjectXAccounts(supabase, accounts);
+      accountConfigs = dryRun
+        ? accounts.map((account) => ({
+            account_id: null,
+            external_account_id: String(account.id),
+            commission_per_contract: 0,
+          }))
+        : await upsertProjectXAccounts(supabase, accounts);
     } else {
       accountConfigs = await loadAccountConfigs(supabase, accountIds);
     }
 
     const allFills: RawFillRow[] = [];
+    const sampleOrderPayloads: Array<Record<string, unknown>> = [];
+    const sampleTradeExecutionPayloads: Array<Record<string, unknown>> = [];
     let ordersCount = 0;
 
     for (const accountId of accountIds) {
       const orders = await client.fetchOrders({ accountId, rangeStart, rangeEnd });
       const fills = await client.fetchFills({ accountId, rangeStart, rangeEnd });
       ordersCount += orders.length;
+      sampleOrderPayloads.push(...orders.slice(0, 1));
       const rawOrders = mapProjectXOrders(orders, accountId);
       const rawFills = mapProjectXFills(fills, accountId);
+      sampleTradeExecutionPayloads.push(...fills.slice(0, 1));
 
-      await upsertRawOrders(supabase, rawOrders);
-      await upsertRawFills(supabase, rawFills);
+      if (!dryRun) {
+        await upsertRawOrders(supabase, rawOrders);
+        await upsertRawFills(supabase, rawFills);
+      }
 
       allFills.push(...rawFills);
     }
 
     const normalizedTrades = await normalizeFillsToTrades(allFills, accountConfigs);
+
+    if (dryRun) {
+      return jsonResponse({
+        ok: true,
+        dryRun: true,
+        rangeStart,
+        rangeEnd,
+        accountsDiscovered: accountIds.map(maskAccountId),
+        accountsCount: accountIds.length,
+        ordersCount,
+        tradeExecutionsCount: allFills.length,
+        normalizedTradesCount: normalizedTrades.length,
+        sampleOrderFields: sampleFieldNames(sampleOrderPayloads),
+        sampleTradeExecutionFields: sampleFieldNames(sampleTradeExecutionPayloads),
+        mapping: {
+          side: "0=buy, 1=sell",
+          executionsSource: "/api/Trade/search",
+          fees: "Trade/search fees -> commission",
+        },
+      });
+    }
+
     const { upserted, duplicatesSkipped } = await upsertNormalizedTrades(supabase, normalizedTrades);
 
     await supabase
@@ -112,7 +152,7 @@ serve(async (req) => {
       duplicatesSkipped,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown ProjectX sync error.";
+    const message = safeErrorMessage(error);
     const statusCode = error instanceof Error && error.name === "Unauthorized" ? 401 : 500;
 
     try {
@@ -161,6 +201,28 @@ function mapProjectXOrders(orders: Record<string, unknown>[], fallbackAccountId:
     rejection_reason: stringOrNull(order.rejectionReason),
     raw_payload: order,
   }));
+}
+
+function safeErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const parts = [record.message, record.details, record.hint, record.code]
+      .filter((part) => typeof part === "string" && part.length > 0);
+    if (parts.length > 0) return parts.join(" | ");
+    return JSON.stringify(record);
+  }
+  return "Unknown ProjectX sync error.";
+}
+
+function maskAccountId(accountId: string) {
+  if (accountId.length <= 4) return `${accountId.slice(0, 1)}***`;
+  return `${accountId.slice(0, 2)}***${accountId.slice(-2)}`;
+}
+
+function sampleFieldNames(payloads: Array<Record<string, unknown>> | undefined) {
+  const sample = payloads?.find(Boolean);
+  return sample ? Object.keys(sample).sort() : [];
 }
 
 function mapProjectXFills(fills: Record<string, unknown>[], fallbackAccountId: string): RawFillInsert[] {

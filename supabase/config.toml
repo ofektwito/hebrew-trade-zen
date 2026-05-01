@@ -1,1 +1,10 @@
-project_id = "hprznxpgdxdamntmjqdj"
+project_id = "imaaorikrlfwdrpziish"
+
+[functions.projectx-sync]
+verify_jwt = false
+
+[functions.projectx-reconcile-day]
+verify_jwt = false
+
+[functions.projectx-health]
+verify_jwt = false

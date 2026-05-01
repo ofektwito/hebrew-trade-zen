@@ -122,35 +122,45 @@ export async function upsertProjectXAccounts(
 }
 
 export async function upsertRawOrders(supabase: SupabaseClient, orders: RawOrderInsert[]) {
-  if (orders.length === 0) return;
+  for (const order of orders) {
+    if (!order.external_order_id && !order.platform_order_id) continue;
 
-  const ordersWithExternalId = orders.filter((order) => order.external_order_id);
-  const ordersWithPlatformId = orders.filter((order) => !order.external_order_id && order.platform_order_id);
+    const query = supabase.from("projectx_raw_orders").select("id").limit(1);
+    const { data: existing, error: selectError } = order.external_order_id
+      ? await query.eq("external_order_id", order.external_order_id).maybeSingle()
+      : await query.eq("platform_order_id", order.platform_order_id).maybeSingle();
 
-  if (ordersWithExternalId.length > 0) {
-    const { error } = await supabase
-      .from("projectx_raw_orders")
-      .upsert(ordersWithExternalId, { onConflict: "external_order_id" });
-    if (error) throw error;
-  }
+    if (selectError) throw selectError;
 
-  if (ordersWithPlatformId.length > 0) {
-    const { error } = await supabase
-      .from("projectx_raw_orders")
-      .upsert(ordersWithPlatformId, { onConflict: "platform_order_id" });
-    if (error) throw error;
+    if (existing?.id) {
+      const { error } = await supabase.from("projectx_raw_orders").update(order).eq("id", existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from("projectx_raw_orders").insert(order);
+      if (error) throw error;
+    }
   }
 }
 
 export async function upsertRawFills(supabase: SupabaseClient, fills: RawFillInsert[]) {
-  if (fills.length === 0) return;
+  for (const fill of fills) {
+    if (!fill.external_fill_id) continue;
 
-  const fillsWithExternalId = fills.filter((fill) => fill.external_fill_id);
-  if (fillsWithExternalId.length > 0) {
-    const { error } = await supabase
+    const { data: existing, error: selectError } = await supabase
       .from("projectx_raw_fills")
-      .upsert(fillsWithExternalId, { onConflict: "external_fill_id" });
-    if (error) throw error;
+      .select("id")
+      .eq("external_fill_id", fill.external_fill_id)
+      .maybeSingle();
+
+    if (selectError) throw selectError;
+
+    if (existing?.id) {
+      const { error } = await supabase.from("projectx_raw_fills").update(fill).eq("id", existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from("projectx_raw_fills").insert(fill);
+      if (error) throw error;
+    }
   }
 }
 
