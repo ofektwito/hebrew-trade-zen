@@ -9,11 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { todayISO, fmtMoney, pnlClass } from "@/lib/trade-utils";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
 
 const searchSchema = z.object({ date: z.string().optional() });
+const MARKET_STATES = ["מגמתי", "מדשדש", "מונע חדשות", "לא ברור"] as const;
 
 export const Route = createFileRoute("/reviews/new")({
   validateSearch: zodValidator(searchSchema),
@@ -25,7 +27,15 @@ function NewReview() {
   const navigate = useNavigate();
   const initial = date ?? todayISO();
   const [saving, setSaving] = useState(false);
-  const [autoStats, setAutoStats] = useState({ count: 0, total: 0, best: "", worst: "" });
+  const [autoStats, setAutoStats] = useState({
+    count: 0,
+    total: 0,
+    commissions: 0,
+    winRate: 0,
+    best: "",
+    worst: "",
+    catalyst: "",
+  });
 
   const [f, setF] = useState<any>({
     review_date: initial,
@@ -34,12 +44,16 @@ function NewReview() {
     best_trade: "",
     worst_trade: "",
     main_catalyst: "",
+    daily_summary: "",
     market_context: "",
+    market_state: "לא ברור",
     did_well: "",
     did_wrong: "",
     lessons: "",
     rule_for_tomorrow: "",
     reduce_size_tomorrow: false,
+    daily_loss_limit_hit: false,
+    overtraded: false,
     discipline_score: 7,
     execution_score: 7,
     emotional_score: 7,
@@ -52,14 +66,20 @@ function NewReview() {
       const { data: trades } = await supabase.from("trades").select("*").eq("trade_date", f.review_date);
       const t = trades ?? [];
       const total = t.reduce((s: number, x: any) => s + (x.net_pnl ?? 0), 0);
+      const commissions = t.reduce((s: number, x: any) => s + (x.commissions ?? 0), 0);
+      const wins = t.filter((x: any) => (x.net_pnl ?? 0) > 0).length;
       const sorted = [...t].sort((a, b) => (b.net_pnl ?? 0) - (a.net_pnl ?? 0));
       const best = sorted[0];
       const worst = sorted[sorted.length - 1];
+      const catalyst = mostCommonCatalyst(t);
       setAutoStats({
         count: t.length,
         total,
+        commissions,
+        winRate: t.length ? (wins / t.length) * 100 : 0,
         best: best ? `${best.instrument} ${best.direction} ${fmtMoney(best.net_pnl)}` : "",
         worst: worst && worst !== best ? `${worst.instrument} ${worst.direction} ${fmtMoney(worst.net_pnl)}` : "",
+        catalyst,
       });
       setF((p: any) => ({
         ...p,
@@ -67,6 +87,7 @@ function NewReview() {
         trades_count: String(t.length),
         best_trade: p.best_trade || (best ? `${best.instrument} ${best.direction} ${fmtMoney(best.net_pnl)}` : ""),
         worst_trade: p.worst_trade || (worst && worst !== best ? `${worst.instrument} ${worst.direction} ${fmtMoney(worst.net_pnl)}` : ""),
+        main_catalyst: p.main_catalyst || catalyst,
       }));
     })();
   }, [f.review_date]);
@@ -82,16 +103,26 @@ function NewReview() {
         best_trade: f.best_trade || null,
         worst_trade: f.worst_trade || null,
         main_catalyst: f.main_catalyst || null,
+        daily_summary: f.daily_summary || null,
         market_context: f.market_context || null,
+        market_state: f.market_state || null,
         did_well: f.did_well || null,
+        what_i_did_well: f.did_well || null,
         did_wrong: f.did_wrong || null,
+        what_i_did_wrong: f.did_wrong || null,
         lessons: f.lessons || null,
+        main_lesson: f.lessons || null,
         rule_for_tomorrow: f.rule_for_tomorrow || null,
         reduce_size_tomorrow: f.reduce_size_tomorrow,
+        should_reduce_size_tomorrow: f.reduce_size_tomorrow,
+        daily_loss_limit_hit: f.daily_loss_limit_hit,
+        overtraded: f.overtraded,
         discipline_score: f.discipline_score,
         execution_score: f.execution_score,
         emotional_score: f.emotional_score,
+        emotional_control_score: f.emotional_score,
         final_summary: f.final_summary || null,
+        final_takeaway: f.final_summary || null,
       };
       const { data, error } = await supabase
         .from("daily_reviews")
@@ -114,14 +145,12 @@ function NewReview() {
 
       <Card className="p-3 gradient-card border-primary/30">
         <div className="grid grid-cols-2 gap-2 text-center">
-          <div>
-            <div className="text-[10px] text-muted-foreground uppercase">סה״כ עסקאות</div>
-            <div className="font-bold">{autoStats.count}</div>
-          </div>
-          <div>
-            <div className="text-[10px] text-muted-foreground uppercase">P&L יומי</div>
-            <div className={`font-bold ${pnlClass(autoStats.total)}`}>{fmtMoney(autoStats.total)}</div>
-          </div>
+          <AutoStat label="Net P&L" value={fmtMoney(autoStats.total)} cls={pnlClass(autoStats.total)} />
+          <AutoStat label="טריידים" value={String(autoStats.count)} />
+          <AutoStat label="Win Rate" value={`${autoStats.winRate.toFixed(0)}%`} />
+          <AutoStat label="עמלות" value={fmtMoney(autoStats.commissions)} />
+          <AutoStat label="הטרייד הטוב" value={autoStats.best || "—"} cls="text-[11px]" />
+          <AutoStat label="הטרייד החלש" value={autoStats.worst || "—"} cls="text-[11px]" />
         </div>
       </Card>
 
@@ -136,21 +165,25 @@ function NewReview() {
       </Card>
 
       <Card className="p-4 gradient-card space-y-3">
-        <h3 className="text-sm font-bold text-primary">שוק והקשר</h3>
-        <Field label="Catalyst מרכזי היום"><Input value={f.main_catalyst} onChange={(e) => set("main_catalyst", e.target.value)} /></Field>
-        <Field label="הקשר שוק"><Textarea rows={2} value={f.market_context} onChange={(e) => set("market_context", e.target.value)} /></Field>
-      </Card>
-
-      <Card className="p-4 gradient-card space-y-3">
-        <h3 className="text-sm font-bold text-primary">רפלקציה</h3>
+        <h3 className="text-sm font-bold text-primary">דיבריף יומי</h3>
+        <Field label="סיכום היום"><Textarea rows={3} value={f.daily_summary} onChange={(e) => set("daily_summary", e.target.value)} placeholder="מה קרה היום במסחר?" /></Field>
+        <Field label="מה היה מצב השוק?">
+          <Select value={f.market_state} onValueChange={(v) => set("market_state", v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {MARKET_STATES.map((state) => <SelectItem key={state} value={state}>{state}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="מה היה הקשר השוק?"><Textarea rows={2} value={f.market_context} onChange={(e) => set("market_context", e.target.value)} placeholder="מגמה, טווח, רמות, ווליום, פתיחה..." /></Field>
+        <Field label="איזה Catalyst השפיע על היום?"><Input value={f.main_catalyst} onChange={(e) => set("main_catalyst", e.target.value)} placeholder={autoStats.catalyst || "ללא Catalyst מרכזי"} /></Field>
         <Field label="מה עשיתי טוב"><Textarea rows={2} value={f.did_well} onChange={(e) => set("did_well", e.target.value)} /></Field>
         <Field label="מה עשיתי לא טוב"><Textarea rows={2} value={f.did_wrong} onChange={(e) => set("did_wrong", e.target.value)} /></Field>
         <Field label="מה הלקח המרכזי?"><Textarea rows={2} value={f.lessons} onChange={(e) => set("lessons", e.target.value)} /></Field>
         <Field label="איזה חוק אני לוקח למחר?"><Textarea rows={2} value={f.rule_for_tomorrow} onChange={(e) => set("rule_for_tomorrow", e.target.value)} /></Field>
-        <div className="flex items-center justify-between rounded-lg bg-input/40 px-3 py-2">
-          <Label className="text-sm">האם צריך להקטין גודל מחר?</Label>
-          <Switch checked={f.reduce_size_tomorrow} onCheckedChange={(v) => set("reduce_size_tomorrow", v)} />
-        </div>
+        <ToggleRow label="האם צריך להקטין גודל מחר?" checked={f.reduce_size_tomorrow} onChange={(v) => set("reduce_size_tomorrow", v)} />
+        <ToggleRow label="האם פגעתי בסטופ יומי?" checked={f.daily_loss_limit_hit} onChange={(v) => set("daily_loss_limit_hit", v)} />
+        <ToggleRow label="האם עשיתי Overtrade?" checked={f.overtraded} onChange={(v) => set("overtraded", v)} />
       </Card>
 
       <Card className="p-4 gradient-card space-y-3">
@@ -161,7 +194,7 @@ function NewReview() {
       </Card>
 
       <Card className="p-4 gradient-card space-y-3">
-        <Field label="סיכום סופי"><Textarea rows={3} value={f.final_summary} onChange={(e) => set("final_summary", e.target.value)} /></Field>
+        <Field label="טייקאווי סופי מהיום"><Textarea rows={3} value={f.final_summary} onChange={(e) => set("final_summary", e.target.value)} /></Field>
       </Card>
 
       <Button type="submit" disabled={saving} className="w-full h-12 text-base font-bold">
@@ -174,6 +207,25 @@ function NewReview() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{label}</Label>{children}</div>;
 }
+
+function AutoStat({ label, value, cls }: { label: string; value: string; cls?: string }) {
+  return (
+    <div>
+      <div className="text-[10px] text-muted-foreground uppercase">{label}</div>
+      <div className={`font-bold leading-tight ${cls ?? ""}`}>{value}</div>
+    </div>
+  );
+}
+
+function ToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg bg-input/40 px-3 py-2">
+      <Label className="text-sm">{label}</Label>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
 function ScoreField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <div>
@@ -185,4 +237,13 @@ function ScoreField({ label, value, onChange }: { label: string; value: number; 
         className="w-full accent-primary" />
     </div>
   );
+}
+
+function mostCommonCatalyst(trades: any[]) {
+  const counts = new Map<string, number>();
+  for (const trade of trades) {
+    if (!trade.catalyst || trade.catalyst === "None") continue;
+    counts.set(trade.catalyst, (counts.get(trade.catalyst) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
 }

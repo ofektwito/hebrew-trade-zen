@@ -75,6 +75,12 @@ export function buildChatGPTSummary(trade: any): string {
 }
 
 export function buildDailyReviewChatGPT(review: any, trades: any[]): string {
+  const didWell = review.what_i_did_well ?? review.did_well ?? "";
+  const didWrong = review.what_i_did_wrong ?? review.did_wrong ?? "";
+  const mainLesson = review.main_lesson ?? review.lessons ?? "";
+  const reduceSize = review.should_reduce_size_tomorrow ?? review.reduce_size_tomorrow;
+  const emotionalScore = review.emotional_control_score ?? review.emotional_score;
+  const finalTakeaway = review.final_takeaway ?? review.final_summary ?? "";
   const totalNet = trades.reduce((sum, trade) => sum + (trade.net_pnl ?? 0), 0);
   const winningTrades = trades.filter((trade) => (trade.net_pnl ?? 0) > 0).length;
   const winRate = trades.length ? (winningTrades / trades.length) * 100 : 0;
@@ -85,7 +91,8 @@ export function buildDailyReviewChatGPT(review: any, trades: any[]): string {
     `מספר טריידים: ${review.trades_count ?? trades.length}`,
     `Win Rate: ${winRate.toFixed(0)}%`,
     `Catalyst מרכזי: ${review.main_catalyst ?? "—"}`,
-    `מצב שוק: ${review.market_context ?? "—"}`,
+    `מצב שוק: ${review.market_state ?? "—"}`,
+    `הקשר שוק: ${review.market_context ?? "—"}`,
     ``,
     `עסקאות:`,
     ...(trades.length
@@ -109,14 +116,18 @@ export function buildDailyReviewChatGPT(review: any, trades: any[]): string {
       : [`אין טריידים מתועדים ביום הזה.`, ``]),
     ``,
     `סיכום יומי:`,
-    `- מה עשיתי טוב: ${review.did_well ?? ""}`,
-    `- מה עשיתי לא טוב: ${review.did_wrong ?? ""}`,
-    `- הלקח המרכזי: ${review.lessons ?? ""}`,
+    `- סיכום היום: ${review.daily_summary ?? ""}`,
+    `- מה עשיתי טוב: ${didWell}`,
+    `- מה עשיתי לא טוב: ${didWrong}`,
+    `- הלקח המרכזי: ${mainLesson}`,
     `- חוק למחר: ${review.rule_for_tomorrow ?? ""}`,
-    `- האם להקטין גודל מחר: ${review.reduce_size_tomorrow ? "כן" : "לא"}`,
+    `- האם להקטין גודל מחר: ${reduceSize ? "כן" : "לא"}`,
+    `- האם פגעתי בסטופ יומי: ${review.daily_loss_limit_hit ? "כן" : "לא"}`,
+    `- האם עשיתי Overtrade: ${review.overtraded ? "כן" : "לא"}`,
     `- ציון משמעת: ${review.discipline_score ?? "—"}/10`,
     `- ציון ביצוע: ${review.execution_score ?? "—"}/10`,
-    `- ציון שליטה רגשית: ${review.emotional_score ?? "—"}/10`,
+    `- ציון שליטה רגשית: ${emotionalScore ?? "—"}/10`,
+    `- טייקאווי סופי: ${finalTakeaway}`,
     ``,
     `שאלות ל-ChatGPT:`,
     `1. אילו דפוסים אתה מזהה ביום המסחר הזה, ומה הדבר הכי חשוב לשפר מחר?`,

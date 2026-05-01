@@ -15,6 +15,7 @@ dist-ssr
 .tanstack/**
 .nitro
 *.local
+supabase/.temp/
 
 # Wrangler / Cloudflare
 .wrangler/
@@ -30,3 +31,19 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Local secrets
+.env
+.env.*
+!.env.example
+supabase/.temp/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+supabase/.temp/
+
+# Strict local secrets ignore
+.env*
+!.env.example
+supabase/.temp/

@@ -45,6 +45,13 @@ function ReviewDetails() {
     navigate({ to: "/reviews" });
   }
 
+  const didWell = review.what_i_did_well ?? review.did_well;
+  const didWrong = review.what_i_did_wrong ?? review.did_wrong;
+  const mainLesson = review.main_lesson ?? review.lessons;
+  const reduceSize = review.should_reduce_size_tomorrow ?? review.reduce_size_tomorrow;
+  const emotionalScore = review.emotional_control_score ?? review.emotional_score;
+  const finalTakeaway = review.final_takeaway ?? review.final_summary;
+
   const stats = getDayStats(trades);
   const totalNet = review.total_pnl ?? stats.totalNet;
   const profit = totalNet > 0;
@@ -65,7 +72,7 @@ function ReviewDetails() {
           <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
             <Pill label="משמעת" value={`${review.discipline_score ?? "—"}/10`} />
             <Pill label="ביצוע" value={`${review.execution_score ?? "—"}/10`} />
-            <Pill label="רגש" value={`${review.emotional_score ?? "—"}/10`} />
+            <Pill label="רגש" value={`${emotionalScore ?? "—"}/10`} />
           </div>
         </div>
       </Card>
@@ -85,16 +92,19 @@ function ReviewDetails() {
         <Row k="הטרייד הטוב ביותר" v={formatTradeShort(stats.bestTrade) || review.best_trade || "—"} />
         <Row k="הטרייד החלש ביותר" v={formatTradeShort(stats.worstTrade) || review.worst_trade || "—"} />
         <Row k="Catalyst מרכזי" v={review.main_catalyst ?? stats.mainCatalyst ?? "—"} />
-        <Row k="מצב שוק" v={review.market_context ?? "—"} />
-        <Row k="להקטין גודל פוזיציה מחר?" v={review.reduce_size_tomorrow ? "כן" : "לא"} />
+        <Row k="מצב שוק" v={review.market_state ?? "—"} />
+        <Row k="להקטין גודל פוזיציה מחר?" v={reduceSize ? "כן" : "לא"} />
+        <Row k="פגעתי בסטופ יומי?" v={review.daily_loss_limit_hit ? "כן" : "לא"} />
+        <Row k="Overtrade?" v={review.overtraded ? "כן" : "לא"} />
       </Card>
 
+      {review.daily_summary && <TextCard title="סיכום היום" text={review.daily_summary} />}
       {review.market_context && <TextCard title="הקשר שוק" text={review.market_context} />}
-      {review.did_well && <TextCard title="מה עשיתי טוב" text={review.did_well} />}
-      {review.did_wrong && <TextCard title="מה עשיתי לא טוב" text={review.did_wrong} />}
-      {review.lessons && <TextCard title="לקחים" text={review.lessons} />}
+      {didWell && <TextCard title="מה עשיתי טוב" text={didWell} />}
+      {didWrong && <TextCard title="מה עשיתי לא טוב" text={didWrong} />}
+      {mainLesson && <TextCard title="הלקח המרכזי" text={mainLesson} />}
       {review.rule_for_tomorrow && <TextCard title="כלל למחר" text={review.rule_for_tomorrow} />}
-      {review.final_summary && <TextCard title="סיכום סופי" text={review.final_summary} />}
+      {finalTakeaway && <TextCard title="טייקאווי סופי מהיום" text={finalTakeaway} />}
 
       <Card className="p-4 gradient-card space-y-2">
         <h3 className="text-sm font-bold text-primary">טריידים באותו יום ({trades.length})</h3>

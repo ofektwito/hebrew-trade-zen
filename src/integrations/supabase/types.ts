@@ -16,25 +16,64 @@ export type Database = {
     Tables: {
       accounts: {
         Row: {
+          account_name: string | null
+          account_type: string | null
           broker: string | null
+          commission_per_contract: number | null
           created_at: string
+          daily_loss_limit: number | null
+          external_account_id: string | null
+          external_source: string | null
           id: string
+          is_active: boolean | null
+          last_synced_at: string | null
+          max_loss_limit: number | null
           name: string
           starting_balance: number | null
+          sync_error: string | null
+          sync_status: string | null
+          updated_at: string
+          user_id: string | null
         }
         Insert: {
+          account_name?: string | null
+          account_type?: string | null
           broker?: string | null
+          commission_per_contract?: number | null
           created_at?: string
+          daily_loss_limit?: number | null
+          external_account_id?: string | null
+          external_source?: string | null
           id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          max_loss_limit?: number | null
           name: string
           starting_balance?: number | null
+          sync_error?: string | null
+          sync_status?: string | null
+          updated_at?: string
+          user_id?: string | null
         }
         Update: {
+          account_name?: string | null
+          account_type?: string | null
           broker?: string | null
+          commission_per_contract?: number | null
           created_at?: string
+          daily_loss_limit?: number | null
+          external_account_id?: string | null
+          external_source?: string | null
           id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          max_loss_limit?: number | null
           name?: string
           starting_balance?: number | null
+          sync_error?: string | null
+          sync_status?: string | null
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -42,64 +81,100 @@ export type Database = {
         Row: {
           best_trade: string | null
           created_at: string
+          daily_loss_limit_hit: boolean | null
+          daily_summary: string | null
           did_well: string | null
           did_wrong: string | null
           discipline_score: number | null
           emotional_score: number | null
+          emotional_control_score: number | null
           execution_score: number | null
           final_summary: string | null
+          final_takeaway: string | null
           id: string
           lessons: string | null
+          main_lesson: string | null
           main_catalyst: string | null
           market_context: string | null
+          market_state: string | null
+          overtraded: boolean | null
+          questions_for_chatgpt: string | null
           reduce_size_tomorrow: boolean | null
           review_date: string
           rule_for_tomorrow: string | null
+          should_reduce_size_tomorrow: boolean | null
           total_pnl: number | null
           trades_count: number | null
           updated_at: string
+          user_id: string | null
+          what_i_did_well: string | null
+          what_i_did_wrong: string | null
           worst_trade: string | null
         }
         Insert: {
           best_trade?: string | null
           created_at?: string
+          daily_loss_limit_hit?: boolean | null
+          daily_summary?: string | null
           did_well?: string | null
           did_wrong?: string | null
           discipline_score?: number | null
           emotional_score?: number | null
+          emotional_control_score?: number | null
           execution_score?: number | null
           final_summary?: string | null
+          final_takeaway?: string | null
           id?: string
           lessons?: string | null
+          main_lesson?: string | null
           main_catalyst?: string | null
           market_context?: string | null
+          market_state?: string | null
+          overtraded?: boolean | null
+          questions_for_chatgpt?: string | null
           reduce_size_tomorrow?: boolean | null
           review_date: string
           rule_for_tomorrow?: string | null
+          should_reduce_size_tomorrow?: boolean | null
           total_pnl?: number | null
           trades_count?: number | null
           updated_at?: string
+          user_id?: string | null
+          what_i_did_well?: string | null
+          what_i_did_wrong?: string | null
           worst_trade?: string | null
         }
         Update: {
           best_trade?: string | null
           created_at?: string
+          daily_loss_limit_hit?: boolean | null
+          daily_summary?: string | null
           did_well?: string | null
           did_wrong?: string | null
           discipline_score?: number | null
           emotional_score?: number | null
+          emotional_control_score?: number | null
           execution_score?: number | null
           final_summary?: string | null
+          final_takeaway?: string | null
           id?: string
           lessons?: string | null
+          main_lesson?: string | null
           main_catalyst?: string | null
           market_context?: string | null
+          market_state?: string | null
+          overtraded?: boolean | null
+          questions_for_chatgpt?: string | null
           reduce_size_tomorrow?: boolean | null
           review_date?: string
           rule_for_tomorrow?: string | null
+          should_reduce_size_tomorrow?: boolean | null
           total_pnl?: number | null
           trades_count?: number | null
           updated_at?: string
+          user_id?: string | null
+          what_i_did_well?: string | null
+          what_i_did_wrong?: string | null
           worst_trade?: string | null
         }
         Relationships: []
@@ -109,21 +184,33 @@ export type Database = {
           created_at: string
           id: string
           kind: string
+          public_url: string | null
+          screenshot_type: string | null
+          storage_path: string | null
           trade_id: string
+          uploaded_at: string | null
           url: string
         }
         Insert: {
           created_at?: string
           id?: string
           kind: string
+          public_url?: string | null
+          screenshot_type?: string | null
+          storage_path?: string | null
           trade_id: string
+          uploaded_at?: string | null
           url: string
         }
         Update: {
           created_at?: string
           id?: string
           kind?: string
+          public_url?: string | null
+          screenshot_type?: string | null
+          storage_path?: string | null
           trade_id?: string
+          uploaded_at?: string | null
           url?: string
         }
         Relationships: [
@@ -138,21 +225,29 @@ export type Database = {
       }
       trades: {
         Row: {
+          account_id: string | null
           account_name: string | null
           catalyst: string | null
+          catalyst_manual_override: boolean | null
           commissions: number | null
           contract_name: string | null
           created_at: string
           direction: string
           emotional_state: string | null
+          entry_at: string | null
           entry_price: number | null
           entry_time: string | null
+          exit_at: string | null
           exit_price: number | null
           exit_time: string | null
+          external_account_id: string | null
+          external_source: string | null
+          external_trade_id: string | null
           followed_plan: string | null
           gross_pnl: number | null
           id: string
           instrument: string
+          is_manual_override: boolean | null
           lesson: string | null
           market_condition: string | null
           mistake_type: string | null
@@ -162,28 +257,41 @@ export type Database = {
           points: number | null
           position_size: number
           setup_type: string | null
+          size: number | null
+          source: string | null
           stop_price: number | null
+          sync_hash: string | null
+          synced_at: string | null
           target_price: number | null
           trade_date: string
           trade_quality: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
+          account_id?: string | null
           account_name?: string | null
           catalyst?: string | null
+          catalyst_manual_override?: boolean | null
           commissions?: number | null
           contract_name?: string | null
           created_at?: string
           direction: string
           emotional_state?: string | null
+          entry_at?: string | null
           entry_price?: number | null
           entry_time?: string | null
+          exit_at?: string | null
           exit_price?: number | null
           exit_time?: string | null
+          external_account_id?: string | null
+          external_source?: string | null
+          external_trade_id?: string | null
           followed_plan?: string | null
           gross_pnl?: number | null
           id?: string
           instrument: string
+          is_manual_override?: boolean | null
           lesson?: string | null
           market_condition?: string | null
           mistake_type?: string | null
@@ -193,28 +301,41 @@ export type Database = {
           points?: number | null
           position_size?: number
           setup_type?: string | null
+          size?: number | null
+          source?: string | null
           stop_price?: number | null
+          sync_hash?: string | null
+          synced_at?: string | null
           target_price?: number | null
           trade_date: string
           trade_quality?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
+          account_id?: string | null
           account_name?: string | null
           catalyst?: string | null
+          catalyst_manual_override?: boolean | null
           commissions?: number | null
           contract_name?: string | null
           created_at?: string
           direction?: string
           emotional_state?: string | null
+          entry_at?: string | null
           entry_price?: number | null
           entry_time?: string | null
+          exit_at?: string | null
           exit_price?: number | null
           exit_time?: string | null
+          external_account_id?: string | null
+          external_source?: string | null
+          external_trade_id?: string | null
           followed_plan?: string | null
           gross_pnl?: number | null
           id?: string
           instrument?: string
+          is_manual_override?: boolean | null
           lesson?: string | null
           market_condition?: string | null
           mistake_type?: string | null
@@ -224,10 +345,45 @@ export type Database = {
           points?: number | null
           position_size?: number
           setup_type?: string | null
+          size?: number | null
+          source?: string | null
           stop_price?: number | null
+          sync_hash?: string | null
+          synced_at?: string | null
           target_price?: number | null
           trade_date?: string
           trade_quality?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      sync_status: {
+        Row: {
+          id: string
+          is_reconnecting: boolean | null
+          last_attempt_at: string | null
+          last_success_at: string | null
+          message: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          is_reconnecting?: boolean | null
+          last_attempt_at?: string | null
+          last_success_at?: string | null
+          message?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          is_reconnecting?: boolean | null
+          last_attempt_at?: string | null
+          last_success_at?: string | null
+          message?: string | null
+          status?: string
           updated_at?: string
         }
         Relationships: []

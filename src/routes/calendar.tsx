@@ -56,6 +56,7 @@ function CalendarPage() {
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [trades, setTrades] = useState<Trade[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [dailyLossLimit, setDailyLossLimit] = useState(DEFAULT_DAILY_LOSS_LIMIT);
   const [loading, setLoading] = useState(true);
 
   const monthStart = toISODate(month);
@@ -64,7 +65,7 @@ function CalendarPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [{ data: tradeRows }, { data: reviewRows }] = await Promise.all([
+      const [{ data: tradeRows }, { data: reviewRows }, { data: accountRow }] = await Promise.all([
         supabase
           .from("trades")
           .select("id,trade_date,instrument,direction,net_pnl,catalyst,setup_type")
@@ -77,14 +78,24 @@ function CalendarPage() {
           .gte("review_date", monthStart)
           .lte("review_date", monthEnd)
           .order("review_date", { ascending: true }),
+        supabase
+          .from("accounts")
+          .select("daily_loss_limit")
+          .eq("is_active", true)
+          .limit(1)
+          .maybeSingle(),
       ]);
       setTrades((tradeRows ?? []) as Trade[]);
       setReviews((reviewRows ?? []) as Review[]);
+      setDailyLossLimit(Number(accountRow?.daily_loss_limit ?? DEFAULT_DAILY_LOSS_LIMIT));
       setLoading(false);
     })();
   }, [monthStart, monthEnd]);
 
-  const { days, summary } = useMemo(() => buildCalendar(month, trades, reviews), [month, trades, reviews]);
+  const { days, summary } = useMemo(
+    () => buildCalendar(month, trades, reviews, dailyLossLimit),
+    [month, trades, reviews, dailyLossLimit],
+  );
 
   function goMonth(delta: number) {
     setMonth((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
@@ -209,7 +220,7 @@ function SummaryCard({ label, value, pnl, accent }: { label: string; value: stri
   );
 }
 
-function buildCalendar(month: Date, trades: Trade[], reviews: Review[]) {
+function buildCalendar(month: Date, trades: Trade[], reviews: Review[], dailyLossLimit: number) {
   const reviewsByDate = new Map(reviews.map((review) => [review.review_date, review]));
   const tradesByDate = groupTradesByDate(trades);
   const first = startOfMonth(month);
@@ -224,18 +235,39 @@ function buildCalendar(month: Date, trades: Trade[], reviews: Review[]) {
     const date = toISODate(current);
     const dayTrades = tradesByDate.get(date) ?? [];
     const review = reviewsByDate.get(date) ?? null;
-    const stats = summarizeDay(date, current.getDate(), current.getMonth() === month.getMonth(), dayTrades, review);
+    const stats = summarizeDay(date, current.getDate(), current.getMonth() === month.getMonth(), dayTrades, review, dailyLossLimit);
     days.push(stats);
   }
 
-  return { days, summary: summarizeMonth(Array.from(tradesByDate.values()).map((dayTrades) => summarizeDay(dayTrades[0].trade_date, Number(dayTrades[0].trade_date.slice(8, 10)), true, dayTrades, reviewsByDate.get(dayTrades[0].trade_date) ?? null))) };
+  return {
+    days,
+    summary: summarizeMonth(
+      Array.from(tradesByDate.values()).map((dayTrades) =>
+        summarizeDay(
+          dayTrades[0].trade_date,
+          Number(dayTrades[0].trade_date.slice(8, 10)),
+          true,
+          dayTrades,
+          reviewsByDate.get(dayTrades[0].trade_date) ?? null,
+          dailyLossLimit,
+        ),
+      ),
+    ),
+  };
 }
 
-function summarizeDay(date: string, day: number, inMonth: boolean, trades: Trade[], review: Review | null): DayStats {
+function summarizeDay(
+  date: string,
+  day: number,
+  inMonth: boolean,
+  trades: Trade[],
+  review: Review | null,
+  dailyLossLimit: number,
+): DayStats {
   const net = trades.reduce((sum, trade) => sum + (trade.net_pnl ?? 0), 0);
   const winners = trades.filter((trade) => (trade.net_pnl ?? 0) > 0);
   const sorted = [...trades].sort((a, b) => (b.net_pnl ?? 0) - (a.net_pnl ?? 0));
-  const lossLimitHit = net <= -DEFAULT_DAILY_LOSS_LIMIT;
+  const lossLimitHit = net <= -dailyLossLimit;
   const status = lossLimitHit ? "limit" : trades.length === 0 ? "none" : net > 0 ? "green" : net < 0 ? "red" : "even";
 
   return {
