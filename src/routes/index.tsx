@@ -101,15 +101,15 @@ function Dashboard() {
       <div>
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-base font-bold">עסקאות אחרונות</h2>
-          <Link to="/trades/new" className="text-xs text-primary font-semibold">+ עסקה חדשה</Link>
+          <Link to="/trades" className="text-xs text-primary font-semibold">כל העסקאות</Link>
         </div>
         {loading ? (
           <Card className="p-6 text-center text-sm text-muted-foreground">טוען נתונים...</Card>
         ) : recent.length === 0 ? (
           <Card className="p-8 text-center">
-            <p className="text-sm text-muted-foreground mb-3">עדיין אין עסקאות ביומן</p>
-            <Link to="/trades/new" className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
-              הוספת עסקה ראשונה
+            <p className="text-sm text-muted-foreground mb-3">עדיין אין עסקאות מסונכרנות ביומן</p>
+            <Link to="/trades" className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+              פתח את מסך העסקאות
             </Link>
           </Card>
         ) : (

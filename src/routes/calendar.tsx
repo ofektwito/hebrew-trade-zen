@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { fmtMoney, pnlClass } from "@/lib/trade-utils";
-import { ChevronLeft, ChevronRight, PlusCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export const Route = createFileRoute("/calendar")({
   component: CalendarPage,
@@ -133,10 +133,9 @@ function CalendarPage() {
       {!loading && trades.length === 0 && (
         <Card className="p-6 text-center gradient-card">
           <p className="text-sm text-muted-foreground mb-3">אין עדיין עסקאות בחודש הזה</p>
-          <Link to="/trades/new">
+          <Link to="/trades">
             <Button>
-              <PlusCircle className="h-4 w-4 ml-2" />
-              הוסף טרייד ראשון
+              עבור לעסקאות
             </Button>
           </Link>
         </Card>

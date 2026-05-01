@@ -5,20 +5,18 @@ import {
   BookOpen,
   CalendarDays,
   LayoutDashboard,
-  PlusCircle,
+  ListChecks,
   RefreshCw,
-  Upload,
   WifiOff,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const tabs = [
   { to: "/", label: "יומן", icon: LayoutDashboard },
-  { to: "/trades/new", label: "עסקה", icon: PlusCircle },
   { to: "/calendar", label: "לוח שנה", icon: CalendarDays },
-  { to: "/reviews", label: "סקירה", icon: BookOpen },
+  { to: "/trades", label: "עסקאות", icon: ListChecks },
+  { to: "/reviews", label: "סקירות", icon: BookOpen },
   { to: "/analytics", label: "ניתוח", icon: BarChart3 },
-  { to: "/import", label: "ייבוא", icon: Upload },
 ] as const;
 
 type SyncStatusRow = {
@@ -52,7 +50,7 @@ export function AppShell() {
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 backdrop-blur">
-        <div className="mx-auto grid max-w-2xl grid-cols-6">
+        <div className="mx-auto grid max-w-2xl grid-cols-5">
           {tabs.map(({ to, label, icon: Icon }) => {
             const active = to === "/" ? path === "/" : path.startsWith(to);
             return (
