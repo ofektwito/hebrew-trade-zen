@@ -4,14 +4,14 @@ import { createAdminClient } from "../_shared/supabaseAdmin.ts";
 import {
   assertSyncSecret,
   ProjectXClient,
-  projectXAdapterTodoMessage,
   readProjectXAccountIds,
   readProjectXConfig,
 } from "../_shared/projectxClient.ts";
-import { normalizeFillsToTrades, type RawFillRow } from "../_shared/normalizer.ts";
+import { normalizeFillsToTrades, type AccountConfig, type RawFillRow } from "../_shared/normalizer.ts";
 import {
   loadAccountConfigs,
   updateSyncStatus,
+  upsertProjectXAccounts,
   upsertRawFills,
   upsertRawOrders,
   upsertNormalizedTrades,
@@ -54,13 +54,21 @@ serve(async (req) => {
     if (runError) throw runError;
     runId = run.id;
 
-    const accountIds = readProjectXAccountIds();
+    const client = new ProjectXClient(readProjectXConfig());
+    let accountIds = readProjectXAccountIds();
+    let accountConfigs: AccountConfig[] = [];
+
     if (accountIds.length === 0) {
-      throw new Error("Missing PROJECTX_ACCOUNT_IDS.");
+      const accounts = await client.fetchAccounts();
+      if (accounts.length === 0) {
+        throw new Error("לא נמצאו חשבונות ProjectX פעילים");
+      }
+      accountIds = accounts.map((account) => String(account.id));
+      accountConfigs = await upsertProjectXAccounts(supabase, accounts);
+    } else {
+      accountConfigs = await loadAccountConfigs(supabase, accountIds);
     }
 
-    const client = new ProjectXClient(readProjectXConfig());
-    const accountConfigs = await loadAccountConfigs(supabase, accountIds);
     const allFills: RawFillRow[] = [];
     let ordersCount = 0;
 
@@ -105,7 +113,7 @@ serve(async (req) => {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown ProjectX sync error.";
-    const statusCode = message === projectXAdapterTodoMessage ? 501 : error instanceof Error && error.name === "Unauthorized" ? 401 : 500;
+    const statusCode = error instanceof Error && error.name === "Unauthorized" ? 401 : 500;
 
     try {
       await updateSyncStatus(supabase, "error", message);
@@ -137,15 +145,15 @@ function mapProjectXOrders(orders: Record<string, unknown>[], fallbackAccountId:
     external_account_id: stringOrNull(order.accountId ?? order.externalAccountId ?? fallbackAccountId),
     platform_order_id: stringOrNull(order.platformOrderId),
     exchange_order_id: stringOrNull(order.exchangeOrderId),
-    contract_name: stringOrNull(order.contractName ?? order.contract ?? order.symbol),
+    contract_name: stringOrNull(order.contractName ?? order.contractId ?? order.contract ?? order.symbol),
     status: stringOrNull(order.status),
     type: stringOrNull(order.type ?? order.orderType),
-    side: stringOrNull(order.side ?? order.action),
+    side: mapSide(order.side ?? order.action),
     size: numberOrNull(order.size ?? order.quantity ?? order.qty),
-    created_at_projectx: stringOrNull(order.createdAt ?? order.createdAtProjectX),
-    filled_at_projectx: stringOrNull(order.filledAt ?? order.filledAtProjectX),
+    created_at_projectx: stringOrNull(order.creationTimestamp ?? order.createdAt ?? order.createdAtProjectX),
+    filled_at_projectx: stringOrNull(order.updateTimestamp ?? order.filledAt ?? order.filledAtProjectX),
     trade_day: stringOrNull(order.tradeDay ?? order.tradeDate),
-    execute_price: numberOrNull(order.executePrice ?? order.price),
+    execute_price: numberOrNull(order.executePrice ?? order.filledPrice ?? order.price),
     stop_price: numberOrNull(order.stopPrice),
     limit_price: numberOrNull(order.limitPrice),
     position_disposition: stringOrNull(order.positionDisposition),
@@ -160,12 +168,14 @@ function mapProjectXFills(fills: Record<string, unknown>[], fallbackAccountId: s
     external_fill_id: stringOrNull(fill.id ?? fill.fillId ?? fill.externalFillId),
     external_order_id: stringOrNull(fill.orderId ?? fill.externalOrderId),
     external_account_id: String(fill.accountId ?? fill.externalAccountId ?? fallbackAccountId),
-    contract_name: String(fill.contractName ?? fill.contract ?? fill.symbol ?? ""),
-    side: String(fill.side ?? fill.action ?? ""),
+    contract_name: String(fill.contractName ?? fill.contractId ?? fill.contract ?? fill.symbol ?? ""),
+    side: mapSide(fill.side ?? fill.action) ?? "",
     size: Number(fill.size ?? fill.quantity ?? fill.qty ?? 0),
     price: Number(fill.price ?? fill.fillPrice ?? 0),
-    fill_time: String(fill.fillTime ?? fill.timestamp ?? fill.createdAt ?? ""),
-    commission: fill.commission === undefined || fill.commission === null ? null : Number(fill.commission),
+    fill_time: String(fill.creationTimestamp ?? fill.fillTime ?? fill.timestamp ?? fill.createdAt ?? ""),
+    commission: fill.fees === undefined || fill.fees === null
+      ? fill.commission === undefined || fill.commission === null ? null : Number(fill.commission)
+      : Number(fill.fees),
     raw_payload: fill,
   }));
 }
@@ -178,4 +188,11 @@ function numberOrNull(value: unknown) {
   if (value === undefined || value === null || value === "") return null;
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function mapSide(value: unknown) {
+  if (value === 0 || value === "0") return "buy";
+  if (value === 1 || value === "1") return "sell";
+  if (value === undefined || value === null) return null;
+  return String(value);
 }

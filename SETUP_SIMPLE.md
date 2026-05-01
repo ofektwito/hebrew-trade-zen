@@ -65,11 +65,12 @@ Set secrets in Supabase. Do not commit secrets.
 npx supabase secrets set PROJECTX_BASE_URL="..."
 npx supabase secrets set TSX_USERNAME="..."
 npx supabase secrets set TSX_API_KEY="..."
-npx supabase secrets set PROJECTX_ACCOUNT_IDS="..."
 npx supabase secrets set PROJECTX_SYNC_SECRET="..."
 npx supabase secrets set SUPABASE_URL="..."
 npx supabase secrets set SUPABASE_SERVICE_ROLE_KEY="..."
 ```
+
+`PROJECTX_ACCOUNT_IDS` is optional. If you do not set it, the backend uses ProjectX account search to discover active accounts after authentication.
 
 Helper example for setting secrets from local `.env` without printing values:
 
@@ -83,5 +84,4 @@ foreach ($line in $envLines) {
 }
 ```
 
-You still need to set `PROJECTX_ACCOUNT_IDS`, `PROJECTX_SYNC_SECRET`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`.
-
+You still need to set `PROJECTX_SYNC_SECRET`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`.

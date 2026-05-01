@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import type { NormalizedTrade, RawFillRow } from "./normalizer.ts";
+import type { ProjectXAccount } from "./projectxClient.ts";
 
 export type RawOrderInsert = {
   external_order_id: string | null;
@@ -60,6 +61,64 @@ export async function loadAccountConfigs(supabase: SupabaseClient, accountIds: s
     external_account_id: account.external_account_id as string,
     commission_per_contract: Number(account.commission_per_contract ?? 0),
   }));
+}
+
+export async function upsertProjectXAccounts(
+  supabase: SupabaseClient,
+  accounts: ProjectXAccount[],
+) {
+  const configs = [];
+
+  for (const account of accounts) {
+    const externalAccountId = String(account.id);
+    const { data: existing, error: selectError } = await supabase
+      .from("accounts")
+      .select("id")
+      .eq("external_source", "projectx")
+      .eq("external_account_id", externalAccountId)
+      .maybeSingle();
+
+    if (selectError) throw selectError;
+
+    const payload = {
+      name: account.name,
+      account_name: account.name,
+      broker: "projectx",
+      external_source: "projectx",
+      external_account_id: externalAccountId,
+      starting_balance: account.balance ?? null,
+      is_active: account.canTrade ?? true,
+      sync_status: "ok",
+      sync_error: null,
+      last_synced_at: new Date().toISOString(),
+    };
+
+    if (existing?.id) {
+      const { error } = await supabase.from("accounts").update(payload).eq("id", existing.id);
+      if (error) throw error;
+      configs.push({
+        account_id: existing.id as string,
+        external_account_id: externalAccountId,
+        commission_per_contract: 0,
+      });
+      continue;
+    }
+
+    const { data: inserted, error } = await supabase
+      .from("accounts")
+      .insert(payload)
+      .select("id")
+      .single();
+
+    if (error) throw error;
+    configs.push({
+      account_id: inserted.id as string,
+      external_account_id: externalAccountId,
+      commission_per_contract: 0,
+    });
+  }
+
+  return configs;
 }
 
 export async function upsertRawOrders(supabase: SupabaseClient, orders: RawOrderInsert[]) {

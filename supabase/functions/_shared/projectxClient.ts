@@ -1,3 +1,11 @@
+export type ProjectXAccount = {
+  id: number;
+  name: string;
+  balance?: number | null;
+  canTrade?: boolean;
+  isVisible?: boolean;
+};
+
 export type ProjectXOrder = Record<string, unknown>;
 export type ProjectXFill = Record<string, unknown>;
 
@@ -6,9 +14,6 @@ export type ProjectXClientConfig = {
   username: string;
   apiKey: string;
 };
-
-const ADAPTER_TODO =
-  "ProjectX adapter requires endpoint configuration. Provide the ProjectX auth, orders, fills, trades, and account endpoint docs or sample responses.";
 
 export function readProjectXConfig(): ProjectXClientConfig {
   const baseUrl = Deno.env.get("PROJECTX_BASE_URL");
@@ -19,7 +24,7 @@ export function readProjectXConfig(): ProjectXClientConfig {
     throw new Error("ProjectX עדיין לא הוגדר");
   }
 
-  return { baseUrl, username, apiKey };
+  return { baseUrl: baseUrl.replace(/\/+$/, ""), username, apiKey };
 }
 
 export function readProjectXAccountIds() {
@@ -50,36 +55,99 @@ export class ProjectXClient {
   constructor(private readonly config: ProjectXClientConfig) {}
 
   async authenticate() {
-    await Promise.resolve();
-    throw new Error(ADAPTER_TODO);
+    const response = await this.post<{ token?: string }>("/api/Auth/loginKey", {
+      userName: this.config.username,
+      apiKey: this.config.apiKey,
+    }, false);
+
+    if (!response.token) {
+      throw new Error("ProjectX authentication did not return a session token.");
+    }
+
+    this.token = response.token;
+    return response.token;
   }
 
-  async fetchOrders(_params: {
+  async fetchAccounts(): Promise<ProjectXAccount[]> {
+    const response = await this.post<{ accounts?: ProjectXAccount[] }>("/api/Account/search", {
+      onlyActiveAccounts: true,
+    });
+
+    return response.accounts ?? [];
+  }
+
+  async fetchOrders(params: {
     accountId: string;
     rangeStart: string;
     rangeEnd: string;
   }): Promise<ProjectXOrder[]> {
-    if (!this.token) {
-      await this.authenticate();
-    }
-    throw new Error(ADAPTER_TODO);
+    const response = await this.post<{ orders?: ProjectXOrder[] }>("/api/Order/search", {
+      accountId: Number(params.accountId),
+      startTimestamp: params.rangeStart,
+      endTimestamp: params.rangeEnd,
+    });
+
+    return response.orders ?? [];
   }
 
-  async fetchFills(_params: {
+  async fetchFills(params: {
     accountId: string;
     rangeStart: string;
     rangeEnd: string;
   }): Promise<ProjectXFill[]> {
-    if (!this.token) {
-      await this.authenticate();
-    }
-    throw new Error(ADAPTER_TODO);
+    const response = await this.post<{ trades?: ProjectXFill[] }>("/api/Trade/search", {
+      accountId: Number(params.accountId),
+      startTimestamp: params.rangeStart,
+      endTimestamp: params.rangeEnd,
+    });
+
+    return response.trades ?? [];
   }
 
   async healthCheck() {
     await this.authenticate();
-    return { ok: true };
+    const accounts = await this.fetchAccounts();
+    return { ok: true, accountsCount: accounts.length };
+  }
+
+  private async post<T extends Record<string, unknown>>(
+    path: string,
+    body: Record<string, unknown>,
+    requireAuth = true,
+  ): Promise<T> {
+    if (requireAuth && !this.token) {
+      await this.authenticate();
+    }
+
+    const headers: HeadersInit = {
+      accept: "text/plain",
+      "Content-Type": "application/json",
+    };
+
+    if (requireAuth && this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(`${this.config.baseUrl}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error(`ProjectX request failed: ${path} returned ${response.status}`);
+    }
+
+    const payload = (await response.json()) as T & {
+      success?: boolean;
+      errorCode?: number;
+      errorMessage?: string | null;
+    };
+
+    if (payload.success === false) {
+      throw new Error(payload.errorMessage ?? `ProjectX request failed: ${path}`);
+    }
+
+    return payload;
   }
 }
-
-export const projectXAdapterTodoMessage = ADAPTER_TODO;

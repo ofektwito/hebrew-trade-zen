@@ -45,21 +45,27 @@ npx supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...
 
 For older environments, the Edge Functions still support `PROJECTX_USERNAME` and `PROJECTX_API_KEY` as fallback secret names, but new projects should use `TSX_USERNAME` and `TSX_API_KEY`.
 
+`PROJECTX_ACCOUNT_IDS` is optional. If it is not set, `projectx-sync` authenticates server-side and uses `/api/Account/search` with `onlyActiveAccounts: true` to discover active accounts.
+
 ## Current ProjectX Adapter State
 
 The Edge Functions, sync logging, raw storage tables, FIFO fill normalizer, and safe trade upsert flow are in place.
 
-The live ProjectX HTTP calls are intentionally isolated in `supabase/functions/_shared/projectxClient.ts`. They currently return a clear configuration error until the exact ProjectX endpoint paths and response shapes are provided.
+The live ProjectX HTTP calls are isolated in `supabase/functions/_shared/projectxClient.ts`.
 
-Needed from ProjectX docs or samples:
+Currently wired endpoints:
 
-- Auth endpoint path and request/response shape
-- Orders endpoint path and query parameters
-- Fills endpoint path and query parameters
-- Account endpoint path and account identifiers
+- `POST /api/Auth/loginKey`
+- `POST /api/Account/search`
+- `POST /api/Order/search`
+- `POST /api/Trade/search`
+
+Still useful from ProjectX docs or samples:
+
 - Example order payload
-- Example fill payload
-- Commission fields, if available
+- Example trade payload
+- Confirmation of side enum values
+- Confirmation that trade `fees` are full execution fees / commissions
 
 ## Sync Invocation
 
