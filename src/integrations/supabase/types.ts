@@ -14,7 +14,224 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      accounts: {
+        Row: {
+          broker: string | null
+          created_at: string
+          id: string
+          name: string
+          starting_balance: number | null
+        }
+        Insert: {
+          broker?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          starting_balance?: number | null
+        }
+        Update: {
+          broker?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          starting_balance?: number | null
+        }
+        Relationships: []
+      }
+      daily_reviews: {
+        Row: {
+          best_trade: string | null
+          created_at: string
+          did_well: string | null
+          did_wrong: string | null
+          discipline_score: number | null
+          emotional_score: number | null
+          execution_score: number | null
+          final_summary: string | null
+          id: string
+          lessons: string | null
+          main_catalyst: string | null
+          market_context: string | null
+          reduce_size_tomorrow: boolean | null
+          review_date: string
+          rule_for_tomorrow: string | null
+          total_pnl: number | null
+          trades_count: number | null
+          updated_at: string
+          worst_trade: string | null
+        }
+        Insert: {
+          best_trade?: string | null
+          created_at?: string
+          did_well?: string | null
+          did_wrong?: string | null
+          discipline_score?: number | null
+          emotional_score?: number | null
+          execution_score?: number | null
+          final_summary?: string | null
+          id?: string
+          lessons?: string | null
+          main_catalyst?: string | null
+          market_context?: string | null
+          reduce_size_tomorrow?: boolean | null
+          review_date: string
+          rule_for_tomorrow?: string | null
+          total_pnl?: number | null
+          trades_count?: number | null
+          updated_at?: string
+          worst_trade?: string | null
+        }
+        Update: {
+          best_trade?: string | null
+          created_at?: string
+          did_well?: string | null
+          did_wrong?: string | null
+          discipline_score?: number | null
+          emotional_score?: number | null
+          execution_score?: number | null
+          final_summary?: string | null
+          id?: string
+          lessons?: string | null
+          main_catalyst?: string | null
+          market_context?: string | null
+          reduce_size_tomorrow?: boolean | null
+          review_date?: string
+          rule_for_tomorrow?: string | null
+          total_pnl?: number | null
+          trades_count?: number | null
+          updated_at?: string
+          worst_trade?: string | null
+        }
+        Relationships: []
+      }
+      screenshots: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          trade_id: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          trade_id: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          trade_id?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "screenshots_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trades: {
+        Row: {
+          account_name: string | null
+          catalyst: string | null
+          commissions: number | null
+          contract_name: string | null
+          created_at: string
+          direction: string
+          emotional_state: string | null
+          entry_price: number | null
+          entry_time: string | null
+          exit_price: number | null
+          exit_time: string | null
+          followed_plan: string | null
+          gross_pnl: number | null
+          id: string
+          instrument: string
+          lesson: string | null
+          market_condition: string | null
+          mistake_type: string | null
+          net_pnl: number | null
+          notes: string | null
+          order_type: string | null
+          points: number | null
+          position_size: number
+          setup_type: string | null
+          stop_price: number | null
+          target_price: number | null
+          trade_date: string
+          trade_quality: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_name?: string | null
+          catalyst?: string | null
+          commissions?: number | null
+          contract_name?: string | null
+          created_at?: string
+          direction: string
+          emotional_state?: string | null
+          entry_price?: number | null
+          entry_time?: string | null
+          exit_price?: number | null
+          exit_time?: string | null
+          followed_plan?: string | null
+          gross_pnl?: number | null
+          id?: string
+          instrument: string
+          lesson?: string | null
+          market_condition?: string | null
+          mistake_type?: string | null
+          net_pnl?: number | null
+          notes?: string | null
+          order_type?: string | null
+          points?: number | null
+          position_size?: number
+          setup_type?: string | null
+          stop_price?: number | null
+          target_price?: number | null
+          trade_date: string
+          trade_quality?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string | null
+          catalyst?: string | null
+          commissions?: number | null
+          contract_name?: string | null
+          created_at?: string
+          direction?: string
+          emotional_state?: string | null
+          entry_price?: number | null
+          entry_time?: string | null
+          exit_price?: number | null
+          exit_time?: string | null
+          followed_plan?: string | null
+          gross_pnl?: number | null
+          id?: string
+          instrument?: string
+          lesson?: string | null
+          market_condition?: string | null
+          mistake_type?: string | null
+          net_pnl?: number | null
+          notes?: string | null
+          order_type?: string | null
+          points?: number | null
+          position_size?: number
+          setup_type?: string | null
+          stop_price?: number | null
+          target_price?: number | null
+          trade_date?: string
+          trade_quality?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
