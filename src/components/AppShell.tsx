@@ -1,9 +1,10 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, PlusCircle, BookOpen, BarChart3, Upload } from "lucide-react";
+import { LayoutDashboard, PlusCircle, BookOpen, BarChart3, Upload, CalendarDays } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "יומן", icon: LayoutDashboard },
   { to: "/trades/new", label: "עסקה", icon: PlusCircle },
+  { to: "/calendar", label: "לוח שנה", icon: CalendarDays },
   { to: "/reviews", label: "סקירה", icon: BookOpen },
   { to: "/analytics", label: "ניתוח", icon: BarChart3 },
   { to: "/import", label: "ייבוא", icon: Upload },
@@ -30,14 +31,14 @@ export function AppShell() {
       </main>
 
       <nav className="fixed bottom-0 inset-x-0 z-50 border-t border-border bg-card/95 backdrop-blur">
-        <div className="mx-auto max-w-2xl grid grid-cols-5">
+        <div className="mx-auto max-w-2xl grid grid-cols-6">
           {tabs.map(({ to, label, icon: Icon }) => {
             const active = to === "/" ? path === "/" : path.startsWith(to);
             return (
               <Link
                 key={to}
                 to={to}
-                className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
+                className={`flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >

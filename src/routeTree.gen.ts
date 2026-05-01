@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ImportRouteImport } from './routes/import'
+import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReviewsIndexRouteImport } from './routes/reviews.index'
@@ -21,6 +22,11 @@ import { Route as ReviewsReviewIdRouteImport } from './routes/reviews.$reviewId'
 const ImportRoute = ImportRouteImport.update({
   id: '/import',
   path: '/import',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarRoute = CalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnalyticsRoute = AnalyticsRouteImport.update({
@@ -62,6 +68,7 @@ const ReviewsReviewIdRoute = ReviewsReviewIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
+  '/calendar': typeof CalendarRoute
   '/import': typeof ImportRoute
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
   '/reviews/new': typeof ReviewsNewRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
+  '/calendar': typeof CalendarRoute
   '/import': typeof ImportRoute
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
   '/reviews/new': typeof ReviewsNewRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
+  '/calendar': typeof CalendarRoute
   '/import': typeof ImportRoute
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
   '/reviews/new': typeof ReviewsNewRoute
@@ -95,6 +104,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/analytics'
+    | '/calendar'
     | '/import'
     | '/reviews/$reviewId'
     | '/reviews/new'
@@ -105,6 +115,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/analytics'
+    | '/calendar'
     | '/import'
     | '/reviews/$reviewId'
     | '/reviews/new'
@@ -115,6 +126,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/analytics'
+    | '/calendar'
     | '/import'
     | '/reviews/$reviewId'
     | '/reviews/new'
@@ -126,6 +138,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
+  CalendarRoute: typeof CalendarRoute
   ImportRoute: typeof ImportRoute
   ReviewsReviewIdRoute: typeof ReviewsReviewIdRoute
   ReviewsNewRoute: typeof ReviewsNewRoute
@@ -141,6 +154,13 @@ declare module '@tanstack/react-router' {
       path: '/import'
       fullPath: '/import'
       preLoaderRoute: typeof ImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendar': {
+      id: '/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof CalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/analytics': {
@@ -198,6 +218,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
+  CalendarRoute: CalendarRoute,
   ImportRoute: ImportRoute,
   ReviewsReviewIdRoute: ReviewsReviewIdRoute,
   ReviewsNewRoute: ReviewsNewRoute,
