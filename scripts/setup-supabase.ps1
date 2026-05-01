@@ -20,9 +20,16 @@ if ([string]::IsNullOrWhiteSpace($projectRef)) {
 
 Write-Host "Linking Supabase project..." -ForegroundColor Cyan
 npx supabase link --project-ref $projectRef
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "Supabase link failed." -ForegroundColor Red
+  exit $LASTEXITCODE
+}
 
 Write-Host "Pushing database migrations..." -ForegroundColor Cyan
 npx supabase db push
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "Supabase db push failed." -ForegroundColor Red
+  exit $LASTEXITCODE
+}
 
 Write-Host "Supabase setup complete." -ForegroundColor Green
-
