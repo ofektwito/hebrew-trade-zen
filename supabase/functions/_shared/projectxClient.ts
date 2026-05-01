@@ -12,11 +12,11 @@ const ADAPTER_TODO =
 
 export function readProjectXConfig(): ProjectXClientConfig {
   const baseUrl = Deno.env.get("PROJECTX_BASE_URL");
-  const username = Deno.env.get("PROJECTX_USERNAME");
-  const apiKey = Deno.env.get("PROJECTX_API_KEY");
+  const username = Deno.env.get("TSX_USERNAME") ?? Deno.env.get("PROJECTX_USERNAME");
+  const apiKey = Deno.env.get("TSX_API_KEY") ?? Deno.env.get("PROJECTX_API_KEY");
 
   if (!baseUrl || !username || !apiKey) {
-    throw new Error("Missing PROJECTX_BASE_URL, PROJECTX_USERNAME, or PROJECTX_API_KEY.");
+    throw new Error("ProjectX עדיין לא הוגדר");
   }
 
   return { baseUrl, username, apiKey };
@@ -83,4 +83,3 @@ export class ProjectXClient {
 }
 
 export const projectXAdapterTodoMessage = ADAPTER_TODO;
-
