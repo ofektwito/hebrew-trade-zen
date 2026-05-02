@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   CATALYSTS,
@@ -28,8 +28,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ScreenshotUploader } from "@/components/ScreenshotUploader";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, ImagePlus, Save, Trash2, X } from "lucide-react";
+import { ArrowLeft, Copy, Save, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/trades/$tradeId")({
   component: TradeDetails,
@@ -41,8 +42,6 @@ const screenshotTypes = [
   { key: "post_trade", label: "אחרי הטרייד" },
   { key: "other", label: "אחר" },
 ] as const;
-
-type ScreenshotType = (typeof screenshotTypes)[number]["key"];
 
 type EnrichmentForm = {
   setup_type: string;
@@ -57,22 +56,13 @@ type EnrichmentForm = {
   lesson: string;
 };
 
-type ScreenshotStatus = "idle" | "uploading" | "saved" | "error" | "deleting";
-
 function TradeDetails() {
   const { tradeId } = Route.useParams();
   const navigate = useNavigate();
   const [trade, setTrade] = useState<any>(null);
   const [form, setForm] = useState<EnrichmentForm>(() => emptyForm());
-  const [shots, setShots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [screenshotStatus, setScreenshotStatus] = useState<Record<ScreenshotType, ScreenshotStatus>>({
-    entry: "idle",
-    exit: "idle",
-    post_trade: "idle",
-    other: "idle",
-  });
 
   useEffect(() => {
     void loadTrade();
@@ -80,17 +70,9 @@ function TradeDetails() {
 
   async function loadTrade() {
     setLoading(true);
-    const [{ data: t }, { data: s }] = await Promise.all([
-      supabase.from("trades").select("*").eq("id", tradeId).maybeSingle(),
-      supabase
-        .from("screenshots")
-        .select("*")
-        .eq("trade_id", tradeId)
-        .order("created_at", { ascending: true }),
-    ]);
+    const { data: t } = await supabase.from("trades").select("*").eq("id", tradeId).maybeSingle();
     setTrade(t);
     setForm(formFromTrade(t));
-    setShots(s ?? []);
     setLoading(false);
   }
 
@@ -98,7 +80,6 @@ function TradeDetails() {
   const profit = (trade?.net_pnl ?? 0) > 0;
   const violation = trade ? isRuleViolation(trade) : false;
   const pnlPerContract = trade?.net_pnl != null && trade.position_size ? trade.net_pnl / trade.position_size : null;
-  const screenshotsByType = useMemo(() => groupScreenshots(shots), [shots]);
 
   if (loading) return <div className="py-8 text-center text-muted-foreground">טוען עסקה...</div>;
   if (!trade) return <div className="py-8 text-center text-muted-foreground">העסקה לא נמצאה</div>;
@@ -138,67 +119,6 @@ function TradeDetails() {
     }
 
     toast.success("היומן של הטרייד נשמר");
-    await loadTrade();
-  }
-
-  async function uploadScreenshot(type: ScreenshotType, file?: File) {
-    if (!file) return;
-    setScreenshotStatus((current) => ({ ...current, [type]: "uploading" }));
-    const path = `${tradeId}/${type}-${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
-    const { error: uploadError } = await supabase.storage.from("screenshots").upload(path, file);
-
-    if (uploadError) {
-      setScreenshotStatus((current) => ({ ...current, [type]: "error" }));
-      toast.error(`שגיאה בהעלאת צילום: ${uploadError.message}`);
-      return;
-    }
-
-    const { data: publicData } = supabase.storage.from("screenshots").getPublicUrl(path);
-    const publicUrl = publicData.publicUrl;
-    const { error: insertError } = await supabase.from("screenshots").insert({
-      trade_id: tradeId,
-      kind: type,
-      screenshot_type: type,
-      storage_path: path,
-      url: publicUrl,
-      public_url: publicUrl,
-      uploaded_at: new Date().toISOString(),
-    });
-
-    if (insertError) {
-      await supabase.storage.from("screenshots").remove([path]);
-      setScreenshotStatus((current) => ({ ...current, [type]: "error" }));
-      toast.error(insertError.message);
-      return;
-    }
-
-    setScreenshotStatus((current) => ({ ...current, [type]: "saved" }));
-    toast.success("צילום המסך נשמר");
-    await loadTrade();
-  }
-
-  async function removeScreenshot(screenshot: any) {
-    const type = normalizeScreenshotType(screenshot.screenshot_type ?? screenshot.kind);
-    setScreenshotStatus((current) => ({ ...current, [type]: "deleting" }));
-    const storagePath = screenshot.storage_path;
-    if (storagePath) {
-      const { error: removeError } = await supabase.storage.from("screenshots").remove([storagePath]);
-      if (removeError) {
-        setScreenshotStatus((current) => ({ ...current, [type]: "error" }));
-        toast.error(`שגיאה במחיקת צילום: ${removeError.message}`);
-        return;
-      }
-    }
-
-    const { error } = await supabase.from("screenshots").delete().eq("id", screenshot.id);
-    if (error) {
-      setScreenshotStatus((current) => ({ ...current, [type]: "error" }));
-      toast.error(error.message);
-      return;
-    }
-
-    setScreenshotStatus((current) => ({ ...current, [type]: "idle" }));
-    toast.success("צילום המסך הוסר");
     await loadTrade();
   }
 
@@ -360,25 +280,13 @@ function TradeDetails() {
         </Button>
       </Card>
 
-      <Card className="gradient-card space-y-3 p-4">
-        <div>
-          <h3 className="text-sm font-bold text-primary">צילומי מסך</h3>
-          <p className="mt-1 text-xs text-muted-foreground">בחירת קובץ שומרת אותו מיד ב-Supabase. אין צורך בכפתור שמירה נוסף.</p>
-        </div>
-        <div className="space-y-4">
-          {screenshotTypes.map((type) => (
-            <ScreenshotSlot
-              key={type.key}
-              label={type.label}
-              type={type.key}
-              screenshots={screenshotsByType[type.key] ?? []}
-              status={screenshotStatus[type.key]}
-              onUpload={uploadScreenshot}
-              onRemove={removeScreenshot}
-            />
-          ))}
-        </div>
-      </Card>
+      <ScreenshotUploader
+        title="צילומי מסך"
+        description="בחירת קובץ שומרת אותו מיד ב-Supabase. אין צורך בכפתור שמירה נוסף."
+        owner={{ tradeId }}
+        context="trade"
+        slots={screenshotTypes}
+      />
 
       <div className={`grid gap-2 ${isProjectX ? "grid-cols-1" : "grid-cols-2"}`}>
         <Button onClick={copySummary} className="h-11">
@@ -394,91 +302,6 @@ function TradeDetails() {
       </div>
     </div>
   );
-}
-
-function ScreenshotSlot({
-  label,
-  type,
-  screenshots,
-  status,
-  onUpload,
-  onRemove,
-}: {
-  label: string;
-  type: ScreenshotType;
-  screenshots: any[];
-  status: ScreenshotStatus;
-  onUpload: (type: ScreenshotType, file?: File) => void;
-  onRemove: (screenshot: any) => void;
-}) {
-  const busy = status === "uploading" || status === "deleting";
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground">{label}</Label>
-          <ScreenshotStatusBadge status={status} />
-        </div>
-        <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-border bg-input/40 px-2 py-1 text-[11px] text-foreground hover:border-primary/60">
-          <ImagePlus className="h-3.5 w-3.5" />
-          {status === "uploading" ? "מעלה..." : "הוסף"}
-          <Input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            disabled={busy}
-            onChange={(event) => {
-              onUpload(type, event.target.files?.[0]);
-              event.currentTarget.value = "";
-            }}
-          />
-        </label>
-      </div>
-
-      {screenshots.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-input/20 p-4 text-center text-xs text-muted-foreground">
-          אין צילום {label}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-3">
-          {screenshots.map((screenshot) => {
-            const src = screenshot.public_url ?? screenshot.url;
-            return (
-              <div key={screenshot.id} className="overflow-hidden rounded-lg border border-border bg-background/40">
-                <a href={src} target="_blank" rel="noreferrer">
-                  <img src={src} alt={label} className="max-h-72 w-full object-contain" />
-                </a>
-                <div className="flex items-center justify-between border-t border-border px-2 py-1.5">
-                  <span className="text-[11px] text-profit">נשמר ב-Supabase</span>
-                  <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => onRemove(screenshot)}>
-                    <X className="ml-1 h-3.5 w-3.5" />
-                    {status === "deleting" ? "מסיר..." : "הסר"}
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ScreenshotStatusBadge({ status }: { status: ScreenshotStatus }) {
-  if (status === "uploading") {
-    return <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">מעלה...</span>;
-  }
-  if (status === "saved") {
-    return <span className="rounded-full bg-profit/10 px-2 py-0.5 text-[10px] font-semibold text-profit">נשמר</span>;
-  }
-  if (status === "error") {
-    return <span className="rounded-full bg-loss/10 px-2 py-0.5 text-[10px] font-semibold text-loss">שגיאה בהעלאה</span>;
-  }
-  if (status === "deleting") {
-    return <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[10px] font-semibold text-warning">מסיר...</span>;
-  }
-  return null;
 }
 
 function Row({ k, v, cls }: { k: string; v: any; cls?: string }) {
@@ -528,20 +351,6 @@ function formFromTrade(trade: any): EnrichmentForm {
     notes: trade.notes ?? "",
     lesson: trade.lesson ?? "",
   };
-}
-
-function groupScreenshots(screenshots: any[]) {
-  return screenshots.reduce<Record<string, any[]>>((groups, screenshot) => {
-    const normalized = normalizeScreenshotType(screenshot.screenshot_type ?? screenshot.kind);
-    groups[normalized] = [...(groups[normalized] ?? []), screenshot];
-    return groups;
-  }, {});
-}
-
-function normalizeScreenshotType(type: string | null | undefined): ScreenshotType {
-  if (type === "entry" || type === "exit" || type === "post_trade" || type === "other") return type;
-  if (type === "post") return "post_trade";
-  return "other";
 }
 
 function valueOrNull(value: string) {

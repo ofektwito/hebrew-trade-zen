@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ScreenshotUploader } from "@/components/ScreenshotUploader";
 import { fmtMoney, fmtPoints, pnlClass, buildDailyReviewChatGPT } from "@/lib/trade-utils";
 import { toast } from "sonner";
 import { Copy, Trash2, ArrowLeft } from "lucide-react";
@@ -12,30 +13,58 @@ export const Route = createFileRoute("/reviews/$reviewId")({
   component: ReviewDetails,
 });
 
+const dailyReviewScreenshotTypes = [
+  { key: "daily_chart", label: "גרף יומי" },
+  { key: "daily_pnl", label: "P&L יומי" },
+  { key: "trade_markup", label: "סימון עסקאות" },
+  { key: "other", label: "אחר" },
+] as const;
+
 function ReviewDetails() {
   const { reviewId } = Route.useParams();
   const navigate = useNavigate();
   const [review, setReview] = useState<any>(null);
   const [trades, setTrades] = useState<any[]>([]);
+  const [reviewScreenshots, setReviewScreenshots] = useState<any[]>([]);
+  const [tradeScreenshots, setTradeScreenshots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    (async () => {
-      const { data: r } = await supabase.from("daily_reviews").select("*").eq("id", reviewId).maybeSingle();
-      setReview(r);
-      if (r) {
-        const { data: t } = await supabase.from("trades").select("*").eq("trade_date", r.review_date).order("entry_time", { ascending: true });
-        setTrades(t ?? []);
-      }
-      setLoading(false);
-    })();
+    void loadReview();
   }, [reviewId]);
+
+  async function loadReview() {
+    setLoading(true);
+    const { data: r } = await supabase.from("daily_reviews").select("*").eq("id", reviewId).maybeSingle();
+    setReview(r);
+    if (r) {
+      const [{ data: t }, { data: reviewShots }] = await Promise.all([
+        supabase.from("trades").select("*").eq("trade_date", r.review_date).order("entry_time", { ascending: true }),
+        supabase.from("screenshots").select("*").eq("review_id", reviewId).order("created_at", { ascending: true }),
+      ]);
+      const dayTrades = t ?? [];
+      setTrades(dayTrades);
+      setReviewScreenshots(reviewShots ?? []);
+
+      if (dayTrades.length > 0) {
+        const { data: tradeShots } = await supabase
+          .from("screenshots")
+          .select("*")
+          .in("trade_id", dayTrades.map((trade) => trade.id))
+          .order("created_at", { ascending: true });
+        setTradeScreenshots(tradeShots ?? []);
+      } else {
+        setTradeScreenshots([]);
+      }
+    }
+    setLoading(false);
+  }
 
   if (loading) return <div className="text-center text-muted-foreground py-8">טוען סקירה...</div>;
   if (!review) return <div className="text-center text-muted-foreground py-8">הסקירה לא נמצאה</div>;
 
   async function copyForChatGPT() {
-    await navigator.clipboard.writeText(buildDailyReviewChatGPT(review, trades));
+    await navigator.clipboard.writeText(buildDailyReviewChatGPT(review, trades, { reviewScreenshots, tradeScreenshots }));
     toast.success("הועתק ל-Clipboard");
   }
   async function onDelete() {
@@ -105,6 +134,15 @@ function ReviewDetails() {
       {mainLesson && <TextCard title="הלקח המרכזי" text={mainLesson} />}
       {review.rule_for_tomorrow && <TextCard title="כלל למחר" text={review.rule_for_tomorrow} />}
       {finalTakeaway && <TextCard title="טייקאווי סופי מהיום" text={finalTakeaway} />}
+
+      <ScreenshotUploader
+        title="צילומי סקירה יומית"
+        description="בחירת קובץ שומרת אותו מיד ב-Supabase. אין צורך בכפתור שמירה נוסף."
+        owner={{ reviewId }}
+        context="daily_review"
+        slots={dailyReviewScreenshotTypes}
+        onChanged={loadReview}
+      />
 
       <Card className="p-4 gradient-card space-y-2">
         <h3 className="text-sm font-bold text-primary">טריידים באותו יום ({trades.length})</h3>

@@ -185,9 +185,11 @@ export type Database = {
           id: string
           kind: string
           public_url: string | null
+          review_id: string | null
+          screenshot_context: string | null
           screenshot_type: string | null
           storage_path: string | null
-          trade_id: string
+          trade_id: string | null
           uploaded_at: string | null
           url: string
         }
@@ -196,9 +198,11 @@ export type Database = {
           id?: string
           kind: string
           public_url?: string | null
+          review_id?: string | null
+          screenshot_context?: string | null
           screenshot_type?: string | null
           storage_path?: string | null
-          trade_id: string
+          trade_id?: string | null
           uploaded_at?: string | null
           url: string
         }
@@ -207,13 +211,22 @@ export type Database = {
           id?: string
           kind?: string
           public_url?: string | null
+          review_id?: string | null
+          screenshot_context?: string | null
           screenshot_type?: string | null
           storage_path?: string | null
-          trade_id?: string
+          trade_id?: string | null
           uploaded_at?: string | null
           url?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "screenshots_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "daily_reviews"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "screenshots_trade_id_fkey"
             columns: ["trade_id"]

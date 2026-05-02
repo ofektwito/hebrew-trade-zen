@@ -74,7 +74,11 @@ export function buildChatGPTSummary(trade: any): string {
   return lines.join("\n");
 }
 
-export function buildDailyReviewChatGPT(review: any, trades: any[]): string {
+export function buildDailyReviewChatGPT(
+  review: any,
+  trades: any[],
+  screenshots?: { reviewScreenshots?: any[]; tradeScreenshots?: any[] },
+): string {
   const didWell = review.what_i_did_well ?? review.did_well ?? "";
   const didWrong = review.what_i_did_wrong ?? review.did_wrong ?? "";
   const mainLesson = review.main_lesson ?? review.lessons ?? "";
@@ -84,6 +88,8 @@ export function buildDailyReviewChatGPT(review: any, trades: any[]): string {
   const totalNet = trades.reduce((sum, trade) => sum + (trade.net_pnl ?? 0), 0);
   const winningTrades = trades.filter((trade) => (trade.net_pnl ?? 0) > 0).length;
   const winRate = trades.length ? (winningTrades / trades.length) * 100 : 0;
+  const reviewScreenshotRows = screenshots?.reviewScreenshots ?? [];
+  const tradeScreenshotRows = screenshots?.tradeScreenshots ?? [];
 
   const lines = [
     `תאריך: ${review.review_date}`,
@@ -94,9 +100,17 @@ export function buildDailyReviewChatGPT(review: any, trades: any[]): string {
     `מצב שוק: ${review.market_state ?? "—"}`,
     `הקשר שוק: ${review.market_context ?? "—"}`,
     ``,
+    `צילומי מסך:`,
+    `- גרף יומי: ${hasScreenshot(reviewScreenshotRows, "daily_chart")}`,
+    `- P&L יומי: ${hasScreenshot(reviewScreenshotRows, "daily_pnl")}`,
+    `- סימון עסקאות: ${hasScreenshot(reviewScreenshotRows, "trade_markup")}`,
+    `- אחר: ${hasScreenshot(reviewScreenshotRows, "other")}`,
+    ``,
     `עסקאות:`,
     ...(trades.length
-      ? trades.flatMap((t, i) => [
+      ? trades.flatMap((t, i) => {
+          const tradeShots = tradeScreenshotRows.filter((screenshot) => screenshot.trade_id === t.id);
+          return [
           `טרייד ${i + 1}:`,
           `- כיוון: ${t.direction ?? "—"}`,
           `- נכס: ${[t.instrument, t.contract_name].filter(Boolean).join(" / ") || "—"}`,
@@ -111,8 +125,13 @@ export function buildDailyReviewChatGPT(review: any, trades: any[]): string {
           `- טעות: ${t.mistake_type ?? "—"}`,
           `- עבדתי לפי התוכנית: ${t.followed_plan ?? "—"}`,
           `- לקח: ${t.lesson ?? "—"}`,
+          `- צילומי טרייד:`,
+          `  - כניסה: ${hasScreenshot(tradeShots, "entry")}`,
+          `  - יציאה: ${hasScreenshot(tradeShots, "exit")}`,
+          `  - אחרי הטרייד: ${hasScreenshot(tradeShots, "post_trade")}`,
           ``,
-        ])
+        ];
+      })
       : [`אין טריידים מתועדים ביום הזה.`, ``]),
     ``,
     `סיכום יומי:`,
@@ -134,4 +153,13 @@ export function buildDailyReviewChatGPT(review: any, trades: any[]): string {
     `2. אילו טעויות או חוזקות השפיעו הכי הרבה על ה-P&L, ואיזה כלל פרקטי כדאי להוסיף?`,
   ];
   return lines.join("\n");
+}
+
+function hasScreenshot(screenshots: any[], type: string) {
+  return screenshots.some((screenshot) => {
+    const screenshotType = screenshot.screenshot_type ?? screenshot.kind;
+    return screenshotType === type || (type === "post_trade" && screenshotType === "post");
+  })
+    ? "קיים"
+    : "לא צורף";
 }
