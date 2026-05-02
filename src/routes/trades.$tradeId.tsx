@@ -57,6 +57,8 @@ type EnrichmentForm = {
   lesson: string;
 };
 
+type ScreenshotStatus = "idle" | "uploading" | "saved" | "error" | "deleting";
+
 function TradeDetails() {
   const { tradeId } = Route.useParams();
   const navigate = useNavigate();
@@ -65,7 +67,12 @@ function TradeDetails() {
   const [shots, setShots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState<ScreenshotType | null>(null);
+  const [screenshotStatus, setScreenshotStatus] = useState<Record<ScreenshotType, ScreenshotStatus>>({
+    entry: "idle",
+    exit: "idle",
+    post_trade: "idle",
+    other: "idle",
+  });
 
   useEffect(() => {
     void loadTrade();
@@ -136,13 +143,13 @@ function TradeDetails() {
 
   async function uploadScreenshot(type: ScreenshotType, file?: File) {
     if (!file) return;
-    setUploading(type);
+    setScreenshotStatus((current) => ({ ...current, [type]: "uploading" }));
     const path = `${tradeId}/${type}-${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
     const { error: uploadError } = await supabase.storage.from("screenshots").upload(path, file);
 
     if (uploadError) {
+      setScreenshotStatus((current) => ({ ...current, [type]: "error" }));
       toast.error(`שגיאה בהעלאת צילום: ${uploadError.message}`);
-      setUploading(null);
       return;
     }
 
@@ -158,30 +165,40 @@ function TradeDetails() {
       uploaded_at: new Date().toISOString(),
     });
 
-    setUploading(null);
-
     if (insertError) {
+      await supabase.storage.from("screenshots").remove([path]);
+      setScreenshotStatus((current) => ({ ...current, [type]: "error" }));
       toast.error(insertError.message);
       return;
     }
 
-    toast.success("צילום המסך צורף");
+    setScreenshotStatus((current) => ({ ...current, [type]: "saved" }));
+    toast.success("צילום המסך נשמר");
     await loadTrade();
   }
 
   async function removeScreenshot(screenshot: any) {
+    const type = normalizeScreenshotType(screenshot.screenshot_type ?? screenshot.kind);
+    setScreenshotStatus((current) => ({ ...current, [type]: "deleting" }));
     const storagePath = screenshot.storage_path;
     if (storagePath) {
-      await supabase.storage.from("screenshots").remove([storagePath]);
+      const { error: removeError } = await supabase.storage.from("screenshots").remove([storagePath]);
+      if (removeError) {
+        setScreenshotStatus((current) => ({ ...current, [type]: "error" }));
+        toast.error(`שגיאה במחיקת צילום: ${removeError.message}`);
+        return;
+      }
     }
 
     const { error } = await supabase.from("screenshots").delete().eq("id", screenshot.id);
     if (error) {
+      setScreenshotStatus((current) => ({ ...current, [type]: "error" }));
       toast.error(error.message);
       return;
     }
 
-    toast.success("צילום המסך נמחק");
+    setScreenshotStatus((current) => ({ ...current, [type]: "idle" }));
+    toast.success("צילום המסך הוסר");
     await loadTrade();
   }
 
@@ -344,7 +361,10 @@ function TradeDetails() {
       </Card>
 
       <Card className="gradient-card space-y-3 p-4">
-        <h3 className="text-sm font-bold text-primary">צילומי מסך</h3>
+        <div>
+          <h3 className="text-sm font-bold text-primary">צילומי מסך</h3>
+          <p className="mt-1 text-xs text-muted-foreground">בחירת קובץ שומרת אותו מיד ב-Supabase. אין צורך בכפתור שמירה נוסף.</p>
+        </div>
         <div className="space-y-4">
           {screenshotTypes.map((type) => (
             <ScreenshotSlot
@@ -352,7 +372,7 @@ function TradeDetails() {
               label={type.label}
               type={type.key}
               screenshots={screenshotsByType[type.key] ?? []}
-              uploading={uploading === type.key}
+              status={screenshotStatus[type.key]}
               onUpload={uploadScreenshot}
               onRemove={removeScreenshot}
             />
@@ -380,30 +400,38 @@ function ScreenshotSlot({
   label,
   type,
   screenshots,
-  uploading,
+  status,
   onUpload,
   onRemove,
 }: {
   label: string;
   type: ScreenshotType;
   screenshots: any[];
-  uploading: boolean;
+  status: ScreenshotStatus;
   onUpload: (type: ScreenshotType, file?: File) => void;
   onRemove: (screenshot: any) => void;
 }) {
+  const busy = status === "uploading" || status === "deleting";
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <Label className="text-xs text-muted-foreground">{label}</Label>
+        <div className="flex items-center gap-2">
+          <Label className="text-xs text-muted-foreground">{label}</Label>
+          <ScreenshotStatusBadge status={status} />
+        </div>
         <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-border bg-input/40 px-2 py-1 text-[11px] text-foreground hover:border-primary/60">
           <ImagePlus className="h-3.5 w-3.5" />
-          {uploading ? "מעלה..." : "הוסף"}
+          {status === "uploading" ? "מעלה..." : "הוסף"}
           <Input
             type="file"
             accept="image/*"
             className="hidden"
-            disabled={uploading}
-            onChange={(event) => onUpload(type, event.target.files?.[0])}
+            disabled={busy}
+            onChange={(event) => {
+              onUpload(type, event.target.files?.[0]);
+              event.currentTarget.value = "";
+            }}
           />
         </label>
       </div>
@@ -422,10 +450,10 @@ function ScreenshotSlot({
                   <img src={src} alt={label} className="max-h-72 w-full object-contain" />
                 </a>
                 <div className="flex items-center justify-between border-t border-border px-2 py-1.5">
-                  <span className="text-[11px] text-muted-foreground">{label}</span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(screenshot)}>
+                  <span className="text-[11px] text-profit">נשמר ב-Supabase</span>
+                  <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => onRemove(screenshot)}>
                     <X className="ml-1 h-3.5 w-3.5" />
-                    הסר
+                    {status === "deleting" ? "מסיר..." : "הסר"}
                   </Button>
                 </div>
               </div>
@@ -435,6 +463,22 @@ function ScreenshotSlot({
       )}
     </div>
   );
+}
+
+function ScreenshotStatusBadge({ status }: { status: ScreenshotStatus }) {
+  if (status === "uploading") {
+    return <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">מעלה...</span>;
+  }
+  if (status === "saved") {
+    return <span className="rounded-full bg-profit/10 px-2 py-0.5 text-[10px] font-semibold text-profit">נשמר</span>;
+  }
+  if (status === "error") {
+    return <span className="rounded-full bg-loss/10 px-2 py-0.5 text-[10px] font-semibold text-loss">שגיאה בהעלאה</span>;
+  }
+  if (status === "deleting") {
+    return <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[10px] font-semibold text-warning">מסיר...</span>;
+  }
+  return null;
 }
 
 function Row({ k, v, cls }: { k: string; v: any; cls?: string }) {
@@ -488,11 +532,16 @@ function formFromTrade(trade: any): EnrichmentForm {
 
 function groupScreenshots(screenshots: any[]) {
   return screenshots.reduce<Record<string, any[]>>((groups, screenshot) => {
-    const type = screenshot.screenshot_type ?? screenshot.kind ?? "other";
-    const normalized = type === "post" ? "post_trade" : type;
+    const normalized = normalizeScreenshotType(screenshot.screenshot_type ?? screenshot.kind);
     groups[normalized] = [...(groups[normalized] ?? []), screenshot];
     return groups;
   }, {});
+}
+
+function normalizeScreenshotType(type: string | null | undefined): ScreenshotType {
+  if (type === "entry" || type === "exit" || type === "post_trade" || type === "other") return type;
+  if (type === "post") return "post_trade";
+  return "other";
 }
 
 function valueOrNull(value: string) {
