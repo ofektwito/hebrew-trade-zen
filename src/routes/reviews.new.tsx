@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { todayISO, fmtMoney, pnlClass } from "@/lib/trade-utils";
 import { toast } from "sonner";
-import { Save } from "lucide-react";
+import { ImagePlus, Save } from "lucide-react";
 
 const searchSchema = z.object({ date: z.string().optional() });
 const MARKET_STATES = ["מגמתי", "מדשדש", "מונע חדשות", "לא ברור"] as const;
@@ -201,6 +201,21 @@ function NewReview() {
 
       <Card className="p-4 gradient-card space-y-3">
         <Field label="טייקאווי סופי מהיום"><Textarea rows={3} value={f.final_summary} onChange={(e) => set("final_summary", e.target.value)} /></Field>
+      </Card>
+
+      <Card className="p-4 gradient-card space-y-3 border-primary/25">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 rounded-lg bg-primary/10 p-2 text-primary">
+            <ImagePlus className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-primary">צילומי סקירה יומית</h3>
+            <p className="mt-1 text-sm font-semibold">שמור את הסקירה כדי לצרף צילומי מסך</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              אחרי השמירה תוכל לצרף גרף יומי, P&L יומי, סימון עסקאות ותמונות נוספות למסך הסקירה.
+            </p>
+          </div>
+        </div>
       </Card>
 
       <Button type="submit" disabled={saving} className="w-full h-12 text-base font-bold">
