@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fmtMoney, isRuleViolation, pnlClass, todayISO } from "@/lib/trade-utils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Minus, AlertTriangle, Trophy, Target } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, AlertTriangle, Trophy, Target, CalendarDays, Wallet } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -24,38 +24,53 @@ interface Trade {
   setup_type: string | null;
 }
 
+interface Account {
+  daily_loss_limit: number | null;
+}
+
 function Dashboard() {
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const [todayTrades, setTodayTrades] = useState<Trade[]>([]);
+  const [allTrades, setAllTrades] = useState<Trade[]>([]);
   const [recent, setRecent] = useState<Trade[]>([]);
+  const [account, setAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       const today = todayISO();
-      const [{ data: todayData }, { data: recentData }] = await Promise.all([
+      const [{ data: todayData }, { data: allData }, { data: recentData }, { data: accountData }] = await Promise.all([
         supabase.from("trades").select("*").eq("trade_date", today),
+        supabase.from("trades").select("*").order("trade_date", { ascending: false }),
         supabase.from("trades").select("*").order("trade_date", { ascending: false }).order("created_at", { ascending: false }).limit(8),
+        supabase.from("accounts").select("daily_loss_limit").eq("is_active", true).limit(1).maybeSingle(),
       ]);
-      setTrades((todayData ?? []) as Trade[]);
+      setTodayTrades((todayData ?? []) as Trade[]);
+      setAllTrades((allData ?? []) as Trade[]);
       setRecent((recentData ?? []) as Trade[]);
+      setAccount(accountData as Account | null);
       setLoading(false);
     })();
   }, []);
 
-  const totalNet = trades.reduce((s, t) => s + (t.net_pnl ?? 0), 0);
-  const totalComm = trades.reduce((s, t) => s + (t.commissions ?? 0), 0);
-  const wins = trades.filter((t) => (t.net_pnl ?? 0) > 0);
-  const losses = trades.filter((t) => (t.net_pnl ?? 0) < 0);
-  const winRate = trades.length ? (wins.length / trades.length) * 100 : 0;
+  const todayNet = sumPnl(todayTrades);
+  const monthTrades = allTrades.filter((trade) => trade.trade_date?.startsWith(currentMonthISO()));
+  const monthNet = sumPnl(monthTrades);
+  const accountNet = sumPnl(allTrades);
+  const totalComm = allTrades.reduce((s, t) => s + (t.commissions ?? 0), 0);
+  const wins = allTrades.filter((t) => (t.net_pnl ?? 0) > 0);
+  const losses = allTrades.filter((t) => (t.net_pnl ?? 0) < 0);
+  const winRate = allTrades.length ? (wins.length / allTrades.length) * 100 : 0;
   const avgWin = wins.length ? wins.reduce((s, t) => s + (t.net_pnl ?? 0), 0) / wins.length : 0;
   const avgLoss = losses.length ? losses.reduce((s, t) => s + (t.net_pnl ?? 0), 0) / losses.length : 0;
-  const violations = trades.filter(isRuleViolation).length;
+  const violations = todayTrades.filter(isRuleViolation).length;
   const qualityScores: Record<string, number> = { "A+": 10, A: 8, B: 6, C: 4, "Bad trade": 1 };
-  const disciplineAvg = trades.length
-    ? trades.reduce((s, t) => s + (qualityScores[t.trade_quality ?? ""] ?? 5), 0) / trades.length
+  const disciplineAvg = allTrades.length
+    ? allTrades.reduce((s, t) => s + (qualityScores[t.trade_quality ?? ""] ?? 5), 0) / allTrades.length
     : 0;
+  const dailyLossLimit = Number(account?.daily_loss_limit ?? 350);
+  const dailyLossUsed = todayNet < 0 && dailyLossLimit > 0 ? Math.min(100, Math.abs(todayNet) / dailyLossLimit * 100) : 0;
 
-  const status = totalNet > 0 ? "green" : totalNet < 0 ? "red" : "even";
+  const status = accountNet > 0 ? "green" : accountNet < 0 ? "red" : "even";
 
   return (
     <div className="space-y-4">
@@ -65,28 +80,48 @@ function Dashboard() {
       }`}>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-wider opacity-80 text-white">P&L יומי</p>
-            <p className="text-4xl font-extrabold mt-1 text-white">{fmtMoney(totalNet)}</p>
-            <p className="text-sm mt-1 text-white/85">
-              {status === "green" ? "יום ירוק" : status === "red" ? "יום אדום" : "Break-even"}
-            </p>
+            <p className="text-xs uppercase tracking-wider opacity-80 text-white">P&L כללי</p>
+            <p className="text-4xl font-extrabold mt-1 text-white">{fmtMoney(accountNet)}</p>
+            <p className="text-sm mt-1 text-white/85">מחושב מהיומן לפי כל הטריידים המסונכרנים</p>
           </div>
           <div className="text-right text-white/90">
-            <div className="text-xs">עסקאות היום</div>
-            <div className="text-2xl font-bold">{trades.length}</div>
+            <div className="text-xs">סה״כ עסקאות</div>
+            <div className="text-2xl font-bold">{allTrades.length}</div>
           </div>
         </div>
       </Card>
 
+      <div className="grid grid-cols-2 gap-3">
+        <Stat label="P&L יומי" value={fmtMoney(todayNet)} pnl={todayNet} icon={<Target className="h-4 w-4" />} />
+        <Stat label="P&L חודשי" value={fmtMoney(monthNet)} pnl={monthNet} icon={<CalendarDays className="h-4 w-4" />} />
+      </div>
+
       {/* Stat grid */}
       <div className="grid grid-cols-2 gap-3">
         <Stat label="Win Rate" value={`${winRate.toFixed(0)}%`} icon={<Target className="h-4 w-4" />} accent="primary" />
-        <Stat label="Net" value={fmtMoney(totalNet)} pnl={totalNet} />
+        <Stat label="Total Trades" value={String(allTrades.length)} icon={<Wallet className="h-4 w-4" />} />
         <Stat label="רווח ממוצע" value={fmtMoney(avgWin)} pnl={avgWin || null} />
         <Stat label="הפסד ממוצע" value={fmtMoney(avgLoss)} pnl={avgLoss || null} />
         <Stat label="עמלות" value={fmtMoney(totalComm)} icon={<Minus className="h-4 w-4" />} />
         <Stat label="ציון משמעת" value={`${disciplineAvg.toFixed(1)}/10`} icon={<Trophy className="h-4 w-4" />} accent="primary" />
       </div>
+
+      <Card className="p-4 gradient-card border-border/60 shadow-card">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground">התקדמות סטופ יומי</p>
+            <p className={`mt-1 text-xl font-bold ${pnlClass(todayNet)}`}>{fmtMoney(todayNet)} / -{fmtMoney(dailyLossLimit)}</p>
+          </div>
+          <Badge variant={dailyLossUsed >= 100 ? "destructive" : "secondary"}>{dailyLossUsed.toFixed(0)}%</Badge>
+        </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+          <div
+            className={`h-full rounded-full ${dailyLossUsed >= 100 ? "bg-loss" : "bg-warning"}`}
+            style={{ width: `${dailyLossUsed}%` }}
+          />
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">מגבלת הפסד יומית לפי החשבון הפעיל, עם fallback של $350 אם אין ערך.</p>
+      </Card>
 
       {violations > 0 && (
         <Card className="p-3 bg-loss/10 border-loss/40 flex items-center gap-2">
@@ -120,6 +155,14 @@ function Dashboard() {
       </div>
     </div>
   );
+}
+
+function sumPnl(trades: Trade[]) {
+  return trades.reduce((sum, trade) => sum + (trade.net_pnl ?? 0), 0);
+}
+
+function currentMonthISO() {
+  return new Date().toISOString().slice(0, 7);
 }
 
 function Stat({ label, value, pnl, icon, accent }: { label: string; value: string; pnl?: number | null; icon?: React.ReactNode; accent?: "primary" }) {
