@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fmtMoney, isRuleViolation, pnlClass, todayISO } from "@/lib/trade-utils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { TrendingUp, TrendingDown, Minus, AlertTriangle, Trophy, Target, CalendarDays, Wallet, Award } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -96,29 +97,45 @@ function Dashboard() {
         <Stat label="P&L חודשי" value={fmtMoney(monthNet)} pnl={monthNet} icon={<CalendarDays className="h-4 w-4" />} />
       </div>
 
-      <Card className="overflow-hidden border-primary/25 bg-card shadow-card">
-        <div className="border-b border-border bg-foreground px-4 py-3 text-background">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide opacity-80">Topstep</p>
-              <h2 className="text-2xl font-extrabold leading-tight">Certified Funded Trader</h2>
-            </div>
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
-              <Award className="h-7 w-7" />
-            </div>
-          </div>
-        </div>
-        <div className="space-y-2 p-4 text-center">
-          <p className="text-xs font-semibold text-muted-foreground">This certificate recognizes</p>
-          <p className="text-3xl font-extrabold tracking-tight text-foreground">Ofek Twito</p>
-          <p className="mx-auto max-w-sm text-sm leading-relaxed text-muted-foreground">
-            On April 30, 2026, you passed the Trading Combine and officially became a Topstep Funded Trader.
-          </p>
-          <Badge className="mt-1 border-primary/30 bg-primary/10 text-primary" variant="outline">
-            Funded Trader
-          </Badge>
-        </div>
-      </Card>
+      <Dialog>
+        <DialogTrigger asChild>
+          <button type="button" className="block w-full text-right">
+            <Card className="overflow-hidden border-primary/25 bg-card shadow-card transition-colors hover:border-primary/60">
+              <div className="border-b border-border bg-foreground px-4 py-3 text-background">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide opacity-80">Topstep</p>
+                    <h2 className="text-2xl font-extrabold leading-tight">Certified Funded Trader</h2>
+                  </div>
+                  <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
+                    <Award className="h-7 w-7" />
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2 p-4 text-center">
+                <p className="text-xs font-semibold text-muted-foreground">This certificate recognizes</p>
+                <p className="text-3xl font-extrabold tracking-tight text-foreground">Ofek Twito</p>
+                <p className="mx-auto max-w-sm text-sm leading-relaxed text-muted-foreground">
+                  On April 30, 2026, you passed the Trading Combine and officially became a Topstep Funded Trader.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <Badge className="mt-1 border-primary/30 bg-primary/10 text-primary" variant="outline">
+                    Funded Trader
+                  </Badge>
+                  <span className="mt-1 text-[11px] font-semibold text-muted-foreground">לחץ לצפייה בתעודה</span>
+                </div>
+              </div>
+            </Card>
+          </button>
+        </DialogTrigger>
+        <DialogContent className="max-h-[92vh] max-w-[95vw] overflow-auto border-border bg-background p-2 sm:max-w-5xl">
+          <img
+            src="/certified-funded-trader.svg"
+            alt="Certified Funded Trader certificate for Ofek Twito"
+            className="h-auto w-full rounded-md"
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Stat grid */}
       <div className="grid grid-cols-2 gap-3">
