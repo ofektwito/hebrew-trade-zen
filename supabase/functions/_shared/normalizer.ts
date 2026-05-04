@@ -92,6 +92,8 @@ const pointValues: Record<string, number> = {
   ES: 50,
 };
 
+const TRADING_DAY_TIME_ZONE = "Asia/Jerusalem";
+
 export async function normalizeFillsToTrades(
   fills: RawFillRow[],
   accountConfigs: AccountConfig[],
@@ -255,11 +257,17 @@ async function finishLifecycle(lifecycle: CurrentLifecycle): Promise<NormalizedT
   const fallbackCommission = (lifecycle.account?.commission_per_contract ?? 0) * lifecycle.totalOpenedSize * 2;
   const commissions = roundMoney(lifecycle.commissions || fallbackCommission);
   const netPnl = roundMoney(grossPnl - commissions);
+  const tradeDate = datePartInTimeZone(lifecycle.entryTime, TRADING_DAY_TIME_ZONE);
+  const entryDisplayTime = timePartInTimeZone(lifecycle.entryTime, TRADING_DAY_TIME_ZONE);
+  const exitDisplayTime = timePartInTimeZone(lifecycle.exitTime, TRADING_DAY_TIME_ZONE);
   const externalTradeId =
     `projectx:${lifecycle.externalAccountId}:${lifecycle.contractName}:${lifecycle.firstExecutionId}:${lifecycle.lastExecutionId}`;
   const syncHash = await hashQuantitativeFields({
+    trade_date: tradeDate,
     entry_time: lifecycle.entryTime,
     exit_time: lifecycle.exitTime,
+    entry_display_time: entryDisplayTime,
+    exit_display_time: exitDisplayTime,
     direction: lifecycle.direction,
     size: lifecycle.maxPositionSize,
     total_opened_size: lifecycle.totalOpenedSize,
@@ -280,11 +288,11 @@ async function finishLifecycle(lifecycle: CurrentLifecycle): Promise<NormalizedT
     external_account_id: lifecycle.externalAccountId,
     sync_hash: syncHash,
     synced_at: new Date().toISOString(),
-    trade_date: lifecycle.entryTime.slice(0, 10),
+    trade_date: tradeDate,
     entry_at: lifecycle.entryTime,
     exit_at: lifecycle.exitTime,
-    entry_time: timePart(lifecycle.entryTime),
-    exit_time: timePart(lifecycle.exitTime),
+    entry_time: entryDisplayTime,
+    exit_time: exitDisplayTime,
     instrument,
     contract_name: lifecycle.contractName,
     direction: lifecycle.direction,
@@ -350,8 +358,31 @@ function roundNumber(value: number) {
   return Math.round(value * 10000) / 10000;
 }
 
-function timePart(value: string) {
-  return new Date(value).toISOString().slice(11, 19);
+function datePartInTimeZone(value: string, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+
+  return `${part(parts, "year")}-${part(parts, "month")}-${part(parts, "day")}`;
+}
+
+function timePartInTimeZone(value: string, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(value));
+
+  return `${part(parts, "hour")}:${part(parts, "minute")}:${part(parts, "second")}`;
+}
+
+function part(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes) {
+  return parts.find((item) => item.type === type)?.value ?? "00";
 }
 
 async function hashQuantitativeFields(fields: Record<string, unknown>) {

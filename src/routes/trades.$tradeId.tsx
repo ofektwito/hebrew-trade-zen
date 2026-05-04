@@ -10,6 +10,9 @@ import {
   SETUP_TYPES,
   TRADE_QUALITIES,
   buildChatGPTSummary,
+  formatDisplayDate,
+  formatDisplayDateTime,
+  formatDisplayTime,
   fmtMoney,
   fmtPoints,
   isRuleViolation,
@@ -203,9 +206,10 @@ function TradeDetails() {
 
       <Card className="gradient-card space-y-2 p-4">
         <h3 className="text-sm font-bold text-primary">נתוני ביצוע</h3>
-        <Row k="תאריך" v={trade.trade_date} />
-        <Row k="כניסה" v={formatTime(trade.entry_time)} />
-        <Row k="יציאה" v={formatTime(trade.exit_time)} />
+        <Row k="תאריך מסחר" v={formatDisplayDate(trade.trade_date)} />
+        <Row k="שעת כניסה" v={formatTradeTime(trade.entry_at, trade.entry_time)} />
+        <Row k="שעת יציאה" v={formatTradeTime(trade.exit_at, trade.exit_time)} />
+        <Row k="אזור זמן" v="מוצג לפי שעון ישראל" />
         <Row k="נכס" v={trade.instrument} />
         <Row k="חוזה" v={trade.contract_name ?? "—"} />
         <Row k="כיוון" v={trade.direction} />
@@ -235,7 +239,7 @@ function TradeDetails() {
                     <Badge variant="outline">{executionRoleLabel(execution.execution_role)}</Badge>
                     <span className="text-sm font-semibold">{sideLabel(execution.side)}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground">{formatDateTime(execution.executed_at)}</span>
+                  <span className="text-xs text-muted-foreground">{formatDisplayDateTime(execution.executed_at)}</span>
                 </div>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                   <MiniExecutionStat label="גודל" value={`x${execution.size ?? "—"}`} />
@@ -419,18 +423,6 @@ function emptyIfNone(value: string) {
   return value === "None" ? "" : value;
 }
 
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("he-IL", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function formatExecutionNumber(value: number | null | undefined) {
   return value == null ? "—" : String(value);
 }
@@ -454,6 +446,10 @@ function sideLabel(side: string | null | undefined) {
   if (side === "buy") return "Buy";
   if (side === "sell") return "Sell";
   return "—";
+}
+
+function formatTradeTime(timestamp: string | null | undefined, fallback: string | null | undefined) {
+  return timestamp ? formatDisplayTime(timestamp) : formatTime(fallback);
 }
 
 function formatTime(value: string | null | undefined) {

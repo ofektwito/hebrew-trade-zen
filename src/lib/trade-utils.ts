@@ -17,6 +17,9 @@ export const FOLLOWED_PLAN = ["Yes", "Partially", "No"] as const;
 export const MISTAKE_TYPES = ["None", "FOMO", "Revenge trade", "Overtrading", "Too much size", "Chasing", "Early entry", "Late exit", "Ignored catalyst", "Ignored VWAP", "Other"] as const;
 export const EMOTIONAL_STATES = ["Calm", "Confident", "Fearful", "Greedy", "Frustrated", "Impulsive"] as const;
 
+export const DISPLAY_TIME_ZONE = "Asia/Jerusalem";
+export const TRADING_DAY_TIME_ZONE = "Asia/Jerusalem";
+
 export function calcPoints(direction: string, entry?: number | null, exit?: number | null): number | null {
   if (entry == null || exit == null) return null;
   return direction === "Short" ? entry - exit : exit - entry;
@@ -50,13 +53,73 @@ export function pnlClass(n: number | null | undefined): string {
 }
 
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return dateInputValueInTimeZone(new Date(), TRADING_DAY_TIME_ZONE);
+}
+
+export function dateInputValueInTimeZone(value: string | Date | null | undefined, timeZone = TRADING_DAY_TIME_ZONE): string {
+  const date = toDate(value);
+  if (!date) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  return `${datePart(parts, "year")}-${datePart(parts, "month")}-${datePart(parts, "day")}`;
+}
+
+export function formatDisplayDate(value: string | Date | null | undefined): string {
+  const date = dateOnlyToLocalDate(value);
+  if (!date) return "—";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).formatToParts(date);
+  return `${datePart(parts, "day")}/${datePart(parts, "month")}/${datePart(parts, "year")}`;
+}
+
+export function formatDisplayTime(value: string | Date | null | undefined): string {
+  const date = toDate(value);
+  if (!date) return "—";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: DISPLAY_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  return `${datePart(parts, "hour")}:${datePart(parts, "minute")}`;
+}
+
+export function formatDisplayDateTime(value: string | Date | null | undefined): string {
+  const date = toDate(value);
+  if (!date) return "—";
+  return `${formatDisplayDate(dateInputValueInTimeZone(date, DISPLAY_TIME_ZONE))} ${formatDisplayTime(date)}`;
+}
+
+function toDate(value: string | Date | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function dateOnlyToLocalDate(value: string | Date | null | undefined) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) return new Date(Date.UTC(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3])));
+  return toDate(value);
+}
+
+function datePart(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes) {
+  return parts.find((part) => part.type === type)?.value ?? "00";
 }
 
 export function buildChatGPTSummary(trade: any): string {
   const lines = [
     `=== סיכום עסקה ל-ChatGPT ===`,
-    `תאריך: ${trade.trade_date}  ${trade.entry_time ?? ""} → ${trade.exit_time ?? ""}`,
+    `תאריך מסחר: ${formatDisplayDate(trade.trade_date)}  ${formatTradeTimeForExport(trade, "entry")} → ${formatTradeTimeForExport(trade, "exit")}`,
     `נכס: ${trade.instrument} ${trade.contract_name ?? ""}`,
     `כיוון: ${trade.direction}  גודל פוזיציה: ${trade.position_size}`,
     `כניסה: ${trade.entry_price}  יציאה: ${trade.exit_price}  Stop: ${trade.stop_price ?? "—"}  Target: ${trade.target_price ?? "—"}`,
@@ -114,8 +177,8 @@ export function buildDailyReviewChatGPT(
           `טרייד ${i + 1}:`,
           `- כיוון: ${t.direction ?? "—"}`,
           `- נכס: ${[t.instrument, t.contract_name].filter(Boolean).join(" / ") || "—"}`,
-          `- כניסה: ${t.entry_time ?? "—"}`,
-          `- יציאה: ${t.exit_time ?? "—"}`,
+          `- כניסה: ${formatTradeTimeForExport(t, "entry")}`,
+          `- יציאה: ${formatTradeTimeForExport(t, "exit")}`,
           `- גודל: ${t.position_size ?? "—"}`,
           `- מחיר כניסה: ${t.entry_price ?? "—"}`,
           `- מחיר יציאה: ${t.exit_price ?? "—"}`,
@@ -153,6 +216,12 @@ export function buildDailyReviewChatGPT(
     `2. אילו טעויות או חוזקות השפיעו הכי הרבה על ה-P&L, ואיזה כלל פרקטי כדאי להוסיף?`,
   ];
   return lines.join("\n");
+}
+
+function formatTradeTimeForExport(trade: any, side: "entry" | "exit") {
+  const timestamp = side === "entry" ? trade.entry_at : trade.exit_at;
+  const fallback = side === "entry" ? trade.entry_time : trade.exit_time;
+  return timestamp ? formatDisplayTime(timestamp) : fallback ?? "—";
 }
 
 function hasScreenshot(screenshots: any[], type: string) {

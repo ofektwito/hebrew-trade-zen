@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScreenshotUploader } from "@/components/ScreenshotUploader";
-import { fmtMoney, fmtPoints, pnlClass, buildDailyReviewChatGPT } from "@/lib/trade-utils";
+import { fmtMoney, fmtPoints, pnlClass, buildDailyReviewChatGPT, formatDisplayTime } from "@/lib/trade-utils";
 import { toast } from "sonner";
 import { Copy, Trash2, ArrowLeft } from "lucide-react";
 
@@ -184,7 +184,7 @@ function TradeReviewCard({ trade, index }: { trade: any; index: number }) {
               <span className="font-bold text-sm">{trade.direction}</span>
             </div>
             <div className="mt-1 text-sm font-semibold">{title}</div>
-            <div className="text-[11px] text-muted-foreground">{trade.entry_time ?? "—"} → {trade.exit_time ?? "—"}</div>
+            <div className="text-[11px] text-muted-foreground">{formatTradeTime(trade.entry_at, trade.entry_time)} → {formatTradeTime(trade.exit_at, trade.exit_time)}</div>
           </div>
           <div className={`text-lg font-bold ${pnlClass(trade.net_pnl)}`}>{fmtMoney(trade.net_pnl)}</div>
         </div>
@@ -241,6 +241,10 @@ function getDayStats(trades: any[]) {
 function formatTradeShort(trade: any) {
   if (!trade) return "";
   return `${trade.instrument} ${trade.direction} · ${fmtMoney(trade.net_pnl)}`;
+}
+
+function formatTradeTime(timestamp: string | null | undefined, fallback: string | null | undefined) {
+  return timestamp ? formatDisplayTime(timestamp) : fallback?.slice(0, 5) ?? "—";
 }
 
 function mostCommonCatalyst(trades: any[]) {

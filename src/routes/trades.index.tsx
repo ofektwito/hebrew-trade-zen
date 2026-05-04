@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FOLLOWED_PLAN, INSTRUMENTS, MISTAKE_TYPES, SETUP_TYPES, fmtMoney, fmtPoints, pnlClass } from "@/lib/trade-utils";
+import { FOLLOWED_PLAN, INSTRUMENTS, MISTAKE_TYPES, SETUP_TYPES, formatDisplayDate, formatDisplayTime, fmtMoney, fmtPoints, pnlClass } from "@/lib/trade-utils";
 import { Camera, FileText, Search, SlidersHorizontal } from "lucide-react";
 
 export const Route = createFileRoute("/trades/")({
@@ -206,7 +206,7 @@ function TradeCard({ trade, hasScreenshots }: { trade: TradeRow; hasScreenshots:
               {trade.source === "projectx" && <Badge variant="secondary" className="text-[10px]">ProjectX</Badge>}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              {trade.trade_date} · {formatTime(trade.entry_time)}-{formatTime(trade.exit_time)} · {trade.direction} · max x{displaySize}
+              {formatDisplayDate(trade.trade_date)} · {formatDisplayTimeFromTrade(trade.entry_time)}-{formatDisplayTimeFromTrade(trade.exit_time)} · {trade.direction} · max x{displaySize}
             </div>
           </div>
           <div className={`shrink-0 text-left text-lg font-bold ${pnlClass(trade.net_pnl)}`}>{fmtMoney(trade.net_pnl)}</div>
@@ -316,10 +316,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function formatTime(value: string | null) {
+function formatDisplayTimeFromTrade(value: string | null) {
   if (!value) return "—";
-  const match = value.match(/T(\d{2}:\d{2})/) ?? value.match(/^(\d{2}:\d{2})/);
-  return match?.[1] ?? value.slice(0, 5);
+  if (value.includes("T")) return formatDisplayTime(value);
+  return value.slice(0, 5);
 }
 
 function formatNumber(value: number | null) {

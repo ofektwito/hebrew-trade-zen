@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { fmtMoney, isRuleViolation, pnlClass, todayISO } from "@/lib/trade-utils";
+import { dateInputValueInTimeZone, formatDisplayDate, fmtMoney, isRuleViolation, pnlClass, todayISO } from "@/lib/trade-utils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
@@ -203,7 +203,7 @@ function sumPnl(trades: Trade[]) {
 }
 
 function currentMonthISO() {
-  return new Date().toISOString().slice(0, 7);
+  return dateInputValueInTimeZone(new Date()).slice(0, 7);
 }
 
 function Stat({ label, value, pnl, icon, accent }: { label: string; value: string; pnl?: number | null; icon?: React.ReactNode; accent?: "primary" }) {
@@ -232,7 +232,7 @@ function TradeRow({ t }: { t: Trade }) {
           <div>
             <div className="font-semibold text-sm">{t.instrument} <span className="text-muted-foreground font-normal">· {t.direction}</span></div>
             <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-muted-foreground">
-              <span>{t.trade_date}</span>
+              <span>{formatDisplayDate(t.trade_date)}</span>
               {t.setup_type && <Badge variant="secondary" className="text-[10px] py-0 px-1.5">{t.setup_type}</Badge>}
               {isRuleViolation(t) && <Badge className="bg-loss/20 text-loss border-0 text-[10px] py-0 px-1.5">חריגה</Badge>}
             </div>
