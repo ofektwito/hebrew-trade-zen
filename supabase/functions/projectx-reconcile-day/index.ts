@@ -26,9 +26,12 @@ serve(async (req) => {
 
     await updateSyncStatus(supabase, "syncing", "מסנכרן...");
 
-    const accountIds = readProjectXAccountIds();
     const fills = await loadRawFillsForDay(supabase, date);
-    const accountConfigs = await loadAccountConfigs(supabase, accountIds);
+    const accountIds = readProjectXAccountIds();
+    const effectiveAccountIds = accountIds.length > 0
+      ? accountIds
+      : [...new Set(fills.map((fill) => fill.external_account_id).filter(Boolean))];
+    const accountConfigs = await loadAccountConfigs(supabase, effectiveAccountIds);
     const normalizedTrades = await normalizeFillsToTrades(fills, accountConfigs);
     const { upserted, duplicatesSkipped } = await upsertNormalizedTrades(supabase, normalizedTrades);
 
@@ -50,4 +53,3 @@ serve(async (req) => {
     );
   }
 });
-

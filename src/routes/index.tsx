@@ -40,9 +40,9 @@ function Dashboard() {
     (async () => {
       const today = todayISO();
       const [{ data: todayData }, { data: allData }, { data: recentData }, { data: accountData }] = await Promise.all([
-        supabase.from("trades").select("*").eq("trade_date", today),
-        supabase.from("trades").select("*").order("trade_date", { ascending: false }),
-        supabase.from("trades").select("*").order("trade_date", { ascending: false }).order("created_at", { ascending: false }).limit(8),
+        supabase.from("trades").select("*").is("superseded_by", null).eq("trade_date", today),
+        supabase.from("trades").select("*").is("superseded_by", null).order("trade_date", { ascending: false }),
+        supabase.from("trades").select("*").is("superseded_by", null).order("trade_date", { ascending: false }).order("created_at", { ascending: false }).limit(8),
         supabase.from("accounts").select("daily_loss_limit").eq("is_active", true).limit(1).maybeSingle(),
       ]);
       setTodayTrades((todayData ?? []) as Trade[]);

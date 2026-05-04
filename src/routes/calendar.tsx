@@ -69,6 +69,7 @@ function CalendarPage() {
         supabase
           .from("trades")
           .select("id,trade_date,instrument,direction,net_pnl,catalyst,setup_type")
+          .is("superseded_by", null)
           .gte("trade_date", monthStart)
           .lte("trade_date", monthEnd)
           .order("trade_date", { ascending: true }),

@@ -17,7 +17,11 @@ function Analytics() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("trades").select("*").order("trade_date", { ascending: true });
+      const { data } = await supabase
+        .from("trades")
+        .select("*")
+        .is("superseded_by", null)
+        .order("trade_date", { ascending: true });
       setTrades(data ?? []);
       setLoading(false);
     })();

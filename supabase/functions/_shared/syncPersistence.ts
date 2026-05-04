@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import type { NormalizedTrade, RawFillRow } from "./normalizer.ts";
+import type { NormalizedTrade, RawFillRow, TradeExecution } from "./normalizer.ts";
 import type { ProjectXAccount } from "./projectxClient.ts";
 
 export type RawOrderInsert = {
@@ -49,6 +49,8 @@ export async function updateSyncStatus(
 }
 
 export async function loadAccountConfigs(supabase: SupabaseClient, accountIds: string[]) {
+  if (accountIds.length === 0) return [];
+
   const { data, error } = await supabase
     .from("accounts")
     .select("id, external_account_id, commission_per_contract")
@@ -182,6 +184,7 @@ export async function upsertNormalizedTrades(
     if (selectError) throw selectError;
 
     if (existing?.sync_hash === trade.sync_hash) {
+      await replaceTradeExecutions(supabase, existing.id as string, trade.executions);
       duplicatesSkipped += 1;
       continue;
     }
@@ -204,24 +207,35 @@ export async function upsertNormalizedTrades(
           direction: trade.direction,
           size: trade.size,
           position_size: trade.position_size,
+          max_position_size: trade.max_position_size,
+          total_opened_size: trade.total_opened_size,
           entry_price: trade.entry_price,
           exit_price: trade.exit_price,
           points: trade.points,
           gross_pnl: trade.gross_pnl,
           commissions: trade.commissions,
           net_pnl: trade.net_pnl,
+          executions_count: trade.executions_count,
         })
         .eq("id", existing.id);
 
       if (error) throw error;
+      await replaceTradeExecutions(supabase, existing.id as string, trade.executions);
       upserted += 1;
       continue;
     }
 
-    const { error } = await supabase.from("trades").insert(trade);
+    const { data: inserted, error } = await supabase
+      .from("trades")
+      .insert(withoutExecutions(trade))
+      .select("id")
+      .single();
     if (error) throw error;
+    await replaceTradeExecutions(supabase, inserted.id as string, trade.executions);
     upserted += 1;
   }
+
+  await preserveAndSupersedePairTrades(supabase, trades);
 
   return { upserted, duplicatesSkipped };
 }
@@ -235,7 +249,7 @@ export async function loadRawFillsForDay(
   const { data, error } = await supabase
     .from("projectx_raw_fills")
     .select(
-      "external_fill_id, external_order_id, external_account_id, contract_name, side, size, price, fill_time, commission",
+      "external_fill_id, external_order_id, external_account_id, contract_name, side, size, price, fill_time, commission, raw_payload",
     )
     .gte("fill_time", rangeStart)
     .lte("fill_time", rangeEnd)
@@ -252,5 +266,130 @@ export async function loadRawFillsForDay(
     price: Number(fill.price),
     fill_time: fill.fill_time,
     commission: fill.commission === null ? null : Number(fill.commission),
+    raw_payload: fill.raw_payload,
   }));
+}
+
+function withoutExecutions(trade: NormalizedTrade) {
+  const { executions: _executions, ...payload } = trade;
+  return payload;
+}
+
+async function replaceTradeExecutions(
+  supabase: SupabaseClient,
+  tradeId: string,
+  executions: TradeExecution[],
+) {
+  const { error: deleteError } = await supabase.from("trade_executions").delete().eq("trade_id", tradeId);
+  if (deleteError) throw deleteError;
+
+  if (executions.length === 0) return;
+
+  const payload = executions.map((execution) => ({
+    ...execution,
+    trade_id: tradeId,
+  }));
+
+  const { error } = await supabase.from("trade_executions").insert(payload);
+  if (error) throw error;
+}
+
+async function preserveAndSupersedePairTrades(
+  supabase: SupabaseClient,
+  lifecycleTrades: NormalizedTrade[],
+) {
+  const groupedIds = new Set(lifecycleTrades.map((trade) => trade.external_trade_id));
+  const dates = [...new Set(lifecycleTrades.map((trade) => trade.trade_date))];
+  if (dates.length === 0) return;
+
+  const { data: insertedTrades, error: groupedError } = await supabase
+    .from("trades")
+    .select("id, external_trade_id, external_account_id, contract_name, trade_date, entry_at, exit_at, setup_type, catalyst, catalyst_manual_override, market_condition, trade_quality, followed_plan, mistake_type, emotional_state, notes, lesson")
+    .eq("external_source", "projectx")
+    .in("external_trade_id", [...groupedIds]);
+  if (groupedError) throw groupedError;
+
+  const { data: oldTrades, error: oldError } = await supabase
+    .from("trades")
+    .select("id, external_trade_id, external_account_id, contract_name, trade_date, entry_at, exit_at, setup_type, catalyst, catalyst_manual_override, market_condition, trade_quality, followed_plan, mistake_type, emotional_state, notes, lesson")
+    .eq("external_source", "projectx")
+    .in("trade_date", dates)
+    .is("superseded_by", null);
+  if (oldError) throw oldError;
+
+  const groupedRows = insertedTrades ?? [];
+  for (const oldTrade of oldTrades ?? []) {
+    if (!oldTrade.external_trade_id || groupedIds.has(oldTrade.external_trade_id)) continue;
+
+    const replacement = groupedRows.find((candidate) =>
+      candidate.id !== oldTrade.id &&
+      candidate.external_account_id === oldTrade.external_account_id &&
+      candidate.contract_name === oldTrade.contract_name &&
+      candidate.trade_date === oldTrade.trade_date &&
+      isInsideLifecycle(oldTrade.entry_at, oldTrade.exit_at, candidate.entry_at, candidate.exit_at)
+    );
+    if (!replacement?.id) continue;
+
+    const qualitativePatch = mergeQualitativeFields(replacement, oldTrade);
+    if (Object.keys(qualitativePatch).length > 0) {
+      const { error } = await supabase.from("trades").update(qualitativePatch).eq("id", replacement.id);
+      if (error) throw error;
+    }
+
+    const { error: screenshotError } = await supabase
+      .from("screenshots")
+      .update({ trade_id: replacement.id })
+      .eq("trade_id", oldTrade.id);
+    if (screenshotError) throw screenshotError;
+
+    const { error: supersedeError } = await supabase
+      .from("trades")
+      .update({
+        superseded_by: replacement.id,
+        superseded_reason: "projectx_lifecycle_grouping",
+        superseded_at: new Date().toISOString(),
+      })
+      .eq("id", oldTrade.id);
+    if (supersedeError) throw supersedeError;
+  }
+}
+
+function isInsideLifecycle(
+  oldEntry: string | null,
+  oldExit: string | null,
+  lifecycleEntry: string | null,
+  lifecycleExit: string | null,
+) {
+  if (!oldEntry || !oldExit || !lifecycleEntry || !lifecycleExit) return false;
+  return new Date(oldEntry).getTime() >= new Date(lifecycleEntry).getTime() &&
+    new Date(oldExit).getTime() <= new Date(lifecycleExit).getTime();
+}
+
+function mergeQualitativeFields(target: Record<string, unknown>, source: Record<string, unknown>) {
+  const patch: Record<string, unknown> = {};
+  const fields = [
+    "setup_type",
+    "market_condition",
+    "trade_quality",
+    "followed_plan",
+    "mistake_type",
+    "emotional_state",
+    "notes",
+    "lesson",
+  ];
+
+  for (const field of fields) {
+    if (!hasValue(target[field]) && hasValue(source[field])) patch[field] = source[field];
+  }
+
+  if (!hasValue(target.catalyst) && hasValue(source.catalyst)) {
+    patch.catalyst = source.catalyst;
+    patch.catalyst_manual_override = Boolean(source.catalyst_manual_override);
+  }
+
+  return patch;
+}
+
+function hasValue(value: unknown) {
+  return typeof value === "string" ? value.trim().length > 0 : value !== null && value !== undefined;
 }

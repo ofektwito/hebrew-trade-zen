@@ -30,6 +30,9 @@ type TradeRow = {
   direction: string;
   position_size: number | null;
   size: number | null;
+  max_position_size: number | null;
+  total_opened_size: number | null;
+  executions_count: number | null;
   entry_price: number | null;
   exit_price: number | null;
   points: number | null;
@@ -78,13 +81,14 @@ function TradesPage() {
         supabase
           .from("trades")
           .select("*")
+          .is("superseded_by", null)
           .order("trade_date", { ascending: false })
           .order("entry_time", { ascending: false }),
-        supabase.from("screenshots").select("trade_id"),
+        supabase.from("screenshots").select("trade_id").not("trade_id", "is", null),
       ]);
 
       setTrades((tradeRows ?? []) as TradeRow[]);
-      setScreenshotTradeIds(new Set((screenshotRows ?? []).map((shot) => shot.trade_id)));
+      setScreenshotTradeIds(new Set((screenshotRows ?? []).map((shot) => shot.trade_id).filter(Boolean)));
       setLoading(false);
     })();
   }, []);
@@ -107,7 +111,7 @@ function TradesPage() {
         <div>
           <h1 className="text-xl font-bold">עסקאות</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            כל הטריידים שסונכרנו מ-ProjectX, עם סטטוס היומן האישי לכל עסקה.
+            כל הטריידים המסונכרנים מ-ProjectX מוצגים כטרייד יומן אחד לכל lifecycle של פוזיציה.
           </p>
         </div>
         <Badge className="border-primary/30 bg-primary/10 text-primary" variant="outline">
@@ -187,6 +191,9 @@ function TradesPage() {
 
 function TradeCard({ trade, hasScreenshots }: { trade: TradeRow; hasScreenshots: boolean }) {
   const hasLesson = Boolean(trade.lesson?.trim() || trade.notes?.trim());
+  const displaySize = trade.max_position_size ?? trade.position_size ?? trade.size ?? "—";
+  const totalOpened = trade.total_opened_size ?? trade.size ?? "—";
+  const executionsCount = trade.executions_count ?? 0;
 
   return (
     <Link to="/trades/$tradeId" params={{ tradeId: trade.id }}>
@@ -199,16 +206,19 @@ function TradeCard({ trade, hasScreenshots }: { trade: TradeRow; hasScreenshots:
               {trade.source === "projectx" && <Badge variant="secondary" className="text-[10px]">ProjectX</Badge>}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              {trade.trade_date} · {formatTime(trade.entry_time)}-{formatTime(trade.exit_time)} · {trade.direction} · x{trade.position_size ?? trade.size ?? "—"}
+              {trade.trade_date} · {formatTime(trade.entry_time)}-{formatTime(trade.exit_time)} · {trade.direction} · max x{displaySize}
             </div>
           </div>
           <div className={`shrink-0 text-left text-lg font-bold ${pnlClass(trade.net_pnl)}`}>{fmtMoney(trade.net_pnl)}</div>
         </div>
 
         <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-          <MiniStat label="כניסה" value={formatNumber(trade.entry_price)} />
-          <MiniStat label="יציאה" value={formatNumber(trade.exit_price)} />
+          <MiniStat label="כניסה ממוצעת" value={formatNumber(trade.entry_price)} />
+          <MiniStat label="יציאה ממוצעת" value={formatNumber(trade.exit_price)} />
           <MiniStat label="נקודות" value={fmtPoints(trade.points)} />
+          <MiniStat label="ביצועים" value={String(executionsCount)} />
+          <MiniStat label="נפתח" value={`x${totalOpened}`} />
+          <MiniStat label="מקס גודל" value={`x${displaySize}`} />
         </div>
 
         <div className="mt-3 flex flex-wrap gap-1.5">

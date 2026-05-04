@@ -43,6 +43,17 @@ const screenshotTypes = [
   { key: "other", label: "אחר" },
 ] as const;
 
+type TradeExecutionRow = {
+  id: string;
+  side: string | null;
+  execution_role: string | null;
+  size: number | null;
+  price: number | null;
+  executed_at: string | null;
+  commissions: number | null;
+  fees: number | null;
+};
+
 type EnrichmentForm = {
   setup_type: string;
   catalyst: string;
@@ -60,6 +71,7 @@ function TradeDetails() {
   const { tradeId } = Route.useParams();
   const navigate = useNavigate();
   const [trade, setTrade] = useState<any>(null);
+  const [executions, setExecutions] = useState<TradeExecutionRow[]>([]);
   const [form, setForm] = useState<EnrichmentForm>(() => emptyForm());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -70,8 +82,16 @@ function TradeDetails() {
 
   async function loadTrade() {
     setLoading(true);
-    const { data: t } = await supabase.from("trades").select("*").eq("id", tradeId).maybeSingle();
+    const [{ data: t }, { data: executionRows }] = await Promise.all([
+      supabase.from("trades").select("*").eq("id", tradeId).maybeSingle(),
+      supabase
+        .from("trade_executions")
+        .select("id, side, execution_role, size, price, executed_at, commissions, fees")
+        .eq("trade_id", tradeId)
+        .order("executed_at", { ascending: true }),
+    ]);
     setTrade(t);
+    setExecutions((executionRows ?? []) as TradeExecutionRow[]);
     setForm(formFromTrade(t));
     setLoading(false);
   }
@@ -199,6 +219,35 @@ function TradeDetails() {
         <Row k="P&L לחוזה" v={fmtMoney(pnlPerContract)} cls={pnlClass(pnlPerContract)} />
       </Card>
 
+      {executions.length > 0 && (
+        <Card className="gradient-card space-y-3 p-4">
+          <div>
+            <h3 className="text-sm font-bold text-primary">פירוט ביצועים</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              כל ה-executions הגולמיים ששייכים לטרייד היומן המקובץ.
+            </p>
+          </div>
+          <div className="space-y-2">
+            {executions.map((execution) => (
+              <div key={execution.id} className="rounded-lg border border-border/60 bg-input/20 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{executionRoleLabel(execution.execution_role)}</Badge>
+                    <span className="text-sm font-semibold">{sideLabel(execution.side)}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{formatDateTime(execution.executed_at)}</span>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                  <MiniExecutionStat label="גודל" value={`x${execution.size ?? "—"}`} />
+                  <MiniExecutionStat label="מחיר" value={formatExecutionNumber(execution.price)} />
+                  <MiniExecutionStat label="עמלות" value={fmtMoney(execution.commissions ?? execution.fees ?? 0)} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <Card className="gradient-card space-y-3 p-4">
         <div>
           <h3 className="text-sm font-bold text-primary">יומן הטרייד</h3>
@@ -313,6 +362,15 @@ function Row({ k, v, cls }: { k: string; v: any; cls?: string }) {
   );
 }
 
+function MiniExecutionStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md bg-background/40 px-2 py-1">
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className="font-semibold">{value}</div>
+    </div>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
@@ -359,6 +417,43 @@ function valueOrNull(value: string) {
 
 function emptyIfNone(value: string) {
   return value === "None" ? "" : value;
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("he-IL", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatExecutionNumber(value: number | null | undefined) {
+  return value == null ? "—" : String(value);
+}
+
+function executionRoleLabel(role: string | null | undefined) {
+  switch (role) {
+    case "entry":
+      return "כניסה";
+    case "add":
+      return "הוספה";
+    case "partial_exit":
+      return "יציאה חלקית";
+    case "exit":
+      return "יציאה";
+    default:
+      return "—";
+  }
+}
+
+function sideLabel(side: string | null | undefined) {
+  if (side === "buy") return "Buy";
+  if (side === "sell") return "Sell";
+  return "—";
 }
 
 function formatTime(value: string | null | undefined) {

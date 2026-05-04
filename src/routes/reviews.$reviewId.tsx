@@ -39,7 +39,7 @@ function ReviewDetails() {
     setReview(r);
     if (r) {
       const [{ data: t }, { data: reviewShots }] = await Promise.all([
-        supabase.from("trades").select("*").eq("trade_date", r.review_date).order("entry_time", { ascending: true }),
+        supabase.from("trades").select("*").is("superseded_by", null).eq("trade_date", r.review_date).order("entry_time", { ascending: true }),
         supabase.from("screenshots").select("*").eq("review_id", reviewId).order("created_at", { ascending: true }),
       ]);
       const dayTrades = t ?? [];

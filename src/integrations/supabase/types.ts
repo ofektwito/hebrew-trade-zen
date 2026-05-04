@@ -262,6 +262,7 @@ export type Database = {
           instrument: string
           is_manual_override: boolean | null
           lesson: string | null
+          max_position_size: number | null
           market_condition: string | null
           mistake_type: string | null
           net_pnl: number | null
@@ -273,11 +274,16 @@ export type Database = {
           size: number | null
           source: string | null
           stop_price: number | null
+          superseded_at: string | null
+          superseded_by: string | null
+          superseded_reason: string | null
           sync_hash: string | null
           synced_at: string | null
           target_price: number | null
           trade_date: string
           trade_quality: string | null
+          total_opened_size: number | null
+          executions_count: number | null
           updated_at: string
           user_id: string | null
         }
@@ -306,6 +312,7 @@ export type Database = {
           instrument: string
           is_manual_override?: boolean | null
           lesson?: string | null
+          max_position_size?: number | null
           market_condition?: string | null
           mistake_type?: string | null
           net_pnl?: number | null
@@ -317,11 +324,16 @@ export type Database = {
           size?: number | null
           source?: string | null
           stop_price?: number | null
+          superseded_at?: string | null
+          superseded_by?: string | null
+          superseded_reason?: string | null
           sync_hash?: string | null
           synced_at?: string | null
           target_price?: number | null
           trade_date: string
           trade_quality?: string | null
+          total_opened_size?: number | null
+          executions_count?: number | null
           updated_at?: string
           user_id?: string | null
         }
@@ -350,6 +362,7 @@ export type Database = {
           instrument?: string
           is_manual_override?: boolean | null
           lesson?: string | null
+          max_position_size?: number | null
           market_condition?: string | null
           mistake_type?: string | null
           net_pnl?: number | null
@@ -361,15 +374,85 @@ export type Database = {
           size?: number | null
           source?: string | null
           stop_price?: number | null
+          superseded_at?: string | null
+          superseded_by?: string | null
+          superseded_reason?: string | null
           sync_hash?: string | null
           synced_at?: string | null
           target_price?: number | null
           trade_date?: string
           trade_quality?: string | null
+          total_opened_size?: number | null
+          executions_count?: number | null
           updated_at?: string
           user_id?: string | null
         }
         Relationships: []
+      }
+      trade_executions: {
+        Row: {
+          account_id: string | null
+          commissions: number | null
+          contract_name: string | null
+          created_at: string
+          executed_at: string | null
+          execution_role: string | null
+          external_account_id: string | null
+          external_execution_id: string | null
+          external_order_id: string | null
+          fees: number | null
+          id: string
+          price: number | null
+          raw_payload: Json | null
+          side: string | null
+          size: number | null
+          trade_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          commissions?: number | null
+          contract_name?: string | null
+          created_at?: string
+          executed_at?: string | null
+          execution_role?: string | null
+          external_account_id?: string | null
+          external_execution_id?: string | null
+          external_order_id?: string | null
+          fees?: number | null
+          id?: string
+          price?: number | null
+          raw_payload?: Json | null
+          side?: string | null
+          size?: number | null
+          trade_id: string
+        }
+        Update: {
+          account_id?: string | null
+          commissions?: number | null
+          contract_name?: string | null
+          created_at?: string
+          executed_at?: string | null
+          execution_role?: string | null
+          external_account_id?: string | null
+          external_execution_id?: string | null
+          external_order_id?: string | null
+          fees?: number | null
+          id?: string
+          price?: number | null
+          raw_payload?: Json | null
+          side?: string | null
+          size?: number | null
+          trade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_executions_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sync_status: {
         Row: {

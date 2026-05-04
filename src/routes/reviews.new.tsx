@@ -69,7 +69,7 @@ function NewReview() {
 
   useEffect(() => {
     (async () => {
-      const { data: trades } = await supabase.from("trades").select("*").eq("trade_date", f.review_date);
+      const { data: trades } = await supabase.from("trades").select("*").is("superseded_by", null).eq("trade_date", f.review_date);
       const t = trades ?? [];
       const total = t.reduce((s: number, x: any) => s + (x.net_pnl ?? 0), 0);
       const commissions = t.reduce((s: number, x: any) => s + (x.commissions ?? 0), 0);
