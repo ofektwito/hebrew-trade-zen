@@ -1,5 +1,5 @@
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   BookOpen,
@@ -11,8 +11,9 @@ import {
   WalletCards,
   WifiOff,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { AccountSelector } from "@/components/AccountScope";
+import { supabase } from "@/integrations/supabase/client";
 
 const tabs = [
   { to: "/", label: "יומן", icon: LayoutDashboard },
@@ -27,6 +28,12 @@ type SyncStatusRow = {
   last_success_at: string | null;
   updated_at: string | null;
   message: string | null;
+};
+
+type RefreshNowResponse = {
+  ok?: boolean;
+  status?: string;
+  message?: string;
 };
 
 export function AppShell() {
@@ -93,41 +100,87 @@ export function AppShell() {
 
 function SyncStatusIndicator() {
   const [syncStatus, setSyncStatus] = useState<SyncStatusRow | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const router = useRouter();
+
+  const loadSyncStatus = useCallback(async () => {
+    const { data } = await supabase
+      .from("sync_status")
+      .select("status, last_success_at, updated_at, message")
+      .eq("id", "projectx")
+      .maybeSingle();
+
+    setSyncStatus(data ?? null);
+    return data ?? null;
+  }, []);
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function loadSyncStatus() {
-      const { data } = await supabase
-        .from("sync_status")
-        .select("status, last_success_at, updated_at, message")
-        .eq("id", "projectx")
-        .maybeSingle();
-
-      if (isMounted) setSyncStatus(data ?? null);
-    }
-
     void loadSyncStatus();
     const interval = window.setInterval(loadSyncStatus, 60_000);
 
     return () => {
-      isMounted = false;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [loadSyncStatus]);
+
+  const handleRefreshNow = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    setSyncStatus((current) => current ? { ...current, status: "syncing", message: "מרענן..." } : current);
+
+    const { data, error } = await supabase.functions.invoke<RefreshNowResponse>("refresh-now", {
+      method: "POST",
+    });
+
+    await loadSyncStatus();
+    setIsRefreshing(false);
+
+    if (error || data?.ok === false) {
+      toast.error(await refreshErrorMessage(error, data));
+      return;
+    }
+
+    await router.invalidate();
+    toast.success("הנתונים עודכנו");
+  };
 
   const presentation = useMemo(() => getSyncPresentation(syncStatus), [syncStatus]);
   const Icon = presentation.icon;
+  const refreshLabel = isRefreshing ? "מרענן..." : "רענן עכשיו";
 
   return (
-    <span
-      title={syncStatus?.message ?? "סטטוס סנכרון ProjectX"}
-      className={`inline-flex max-w-[150px] items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium ${presentation.className}`}
-    >
-      <Icon className={`h-3.5 w-3.5 ${syncStatus?.status === "syncing" ? "animate-spin" : ""}`} />
-      <span className="truncate">{presentation.label}</span>
-    </span>
+    <div className="flex items-center gap-1">
+      <span
+        title={syncStatus?.message ?? "סטטוס סנכרון ProjectX"}
+        className={`inline-flex max-w-[150px] items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium ${presentation.className}`}
+      >
+        <Icon className={`h-3.5 w-3.5 ${syncStatus?.status === "syncing" ? "animate-spin" : ""}`} />
+        <span className="truncate">{presentation.label}</span>
+      </span>
+      <button
+        type="button"
+        title="רענן נתוני ProjectX עכשיו"
+        disabled={isRefreshing}
+        onClick={handleRefreshNow}
+        className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-input/30 px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+        <span className="hidden sm:inline">{refreshLabel}</span>
+      </button>
+    </div>
   );
+}
+
+async function refreshErrorMessage(error: unknown, data: RefreshNowResponse | null | undefined) {
+  if (data?.status === "rate_limited") return "אפשר לרענן שוב בעוד דקה";
+  if (data?.message) return data.message;
+
+  const context = (error as { context?: { json?: () => Promise<RefreshNowResponse> } } | null)?.context;
+  const payload = await context?.json?.().catch(() => null);
+  if (payload?.status === "rate_limited") return "אפשר לרענן שוב בעוד דקה";
+  if (payload?.message) return payload.message;
+
+  return "הרענון נכשל";
 }
 
 function getSyncPresentation(syncStatus: SyncStatusRow | null) {

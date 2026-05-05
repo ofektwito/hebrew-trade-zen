@@ -4,7 +4,8 @@ $ErrorActionPreference = "Stop"
 $functions = @(
   "projectx-sync",
   "projectx-reconcile-day",
-  "projectx-health"
+  "projectx-health",
+  "refresh-now"
 )
 
 Write-Host "Deploying Supabase Edge Functions..." -ForegroundColor Cyan

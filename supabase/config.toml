@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.projectx-health]
 verify_jwt = false
+
+[functions.refresh-now]
+verify_jwt = false
