@@ -6,6 +6,7 @@ import {
   CalendarDays,
   LayoutDashboard,
   ListChecks,
+  LogOut,
   RefreshCw,
   WifiOff,
 } from "lucide-react";
@@ -40,6 +41,14 @@ export function AppShell() {
           </Link>
           <div className="flex min-w-0 items-center gap-2">
             <SyncStatusIndicator />
+            <button
+              type="button"
+              title="התנתק"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-input/30 text-muted-foreground transition-colors hover:text-foreground"
+              onClick={() => supabase.auth.signOut()}
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
             <span className="hidden text-xs text-muted-foreground sm:inline">Futures · מסחר אישי</span>
           </div>
         </div>

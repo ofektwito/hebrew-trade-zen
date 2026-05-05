@@ -33,6 +33,7 @@ type ScreenshotRow = {
   storage_path: string | null;
   public_url: string | null;
   url: string;
+  signed_url?: string | null;
 };
 
 export function ScreenshotUploader({ title, description, owner, context, slots, onChanged }: ScreenshotUploaderProps) {
@@ -63,7 +64,9 @@ export function ScreenshotUploader({ title, description, owner, context, slots, 
       toast.error(error.message);
       setScreenshots([]);
     } else {
-      setScreenshots((data ?? []) as ScreenshotRow[]);
+      const rows = ((data ?? []) as ScreenshotRow[]);
+      const signedRows = await Promise.all(rows.map(withSignedUrl));
+      setScreenshots(signedRows);
     }
     setLoading(false);
   }
@@ -78,8 +81,14 @@ export function ScreenshotUploader({ title, description, owner, context, slots, 
 
     const ownerId = owner.tradeId ?? owner.reviewId;
     const ownerPrefix = owner.tradeId ? "trades" : "reviews";
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      setSlotStatus((current) => ({ ...current, [type]: "error" }));
+      toast.error("צריך להתחבר כדי להעלות צילום");
+      return;
+    }
     const safeName = file.name.replace(/[^\w.-]/g, "_");
-    const path = `${ownerPrefix}/${ownerId}/${type}-${Date.now()}-${safeName}`;
+    const path = `${userData.user.id}/${ownerPrefix}/${ownerId}/${type}-${Date.now()}-${safeName}`;
 
     const { error: uploadError } = await supabase.storage.from("screenshots").upload(path, file);
     if (uploadError) {
@@ -88,8 +97,6 @@ export function ScreenshotUploader({ title, description, owner, context, slots, 
       return;
     }
 
-    const { data: publicData } = supabase.storage.from("screenshots").getPublicUrl(path);
-    const publicUrl = publicData.publicUrl;
     const insertPayload = {
       trade_id: owner.tradeId ?? null,
       review_id: owner.reviewId ?? null,
@@ -97,8 +104,8 @@ export function ScreenshotUploader({ title, description, owner, context, slots, 
       screenshot_type: type,
       screenshot_context: context,
       storage_path: path,
-      url: publicUrl,
-      public_url: publicUrl,
+      url: path,
+      public_url: null,
       uploaded_at: new Date().toISOString(),
     };
 
@@ -219,7 +226,7 @@ function ScreenshotSlot({
       ) : (
         <div className="grid grid-cols-1 gap-3">
           {screenshots.map((screenshot) => {
-            const src = screenshot.public_url ?? screenshot.url;
+            const src = screenshot.signed_url ?? screenshot.public_url ?? screenshot.url;
             return (
               <div key={screenshot.id} className="overflow-hidden rounded-lg border border-border bg-background/40">
                 <a href={src} target="_blank" rel="noreferrer">
@@ -271,4 +278,15 @@ function groupScreenshots(screenshots: ScreenshotRow[]) {
 function normalizeType(type: string | null | undefined) {
   if (type === "post") return "post_trade";
   return type ?? "other";
+}
+
+async function withSignedUrl(screenshot: ScreenshotRow): Promise<ScreenshotRow> {
+  if (!screenshot.storage_path) return screenshot;
+
+  const { data, error } = await supabase.storage
+    .from("screenshots")
+    .createSignedUrl(screenshot.storage_path, 60 * 60);
+
+  if (error) return screenshot;
+  return { ...screenshot, signed_url: data.signedUrl };
 }

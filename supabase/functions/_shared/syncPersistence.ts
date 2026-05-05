@@ -34,8 +34,10 @@ export async function updateSyncStatus(
   message: string | null,
 ) {
   const now = new Date().toISOString();
+  const ownerUserId = await loadOwnerUserId(supabase);
   const payload = {
     id: "projectx",
+    user_id: ownerUserId,
     status,
     last_attempt_at: now,
     last_success_at: status === "ok" ? now : undefined,
@@ -70,6 +72,7 @@ export async function upsertProjectXAccounts(
   accounts: ProjectXAccount[],
 ) {
   const configs = [];
+  const ownerUserId = await loadOwnerUserId(supabase);
 
   for (const account of accounts) {
     const externalAccountId = String(account.id);
@@ -84,6 +87,7 @@ export async function upsertProjectXAccounts(
 
     const payload = {
       name: account.name,
+      user_id: ownerUserId,
       account_name: account.name,
       broker: "projectx",
       external_source: "projectx",
@@ -124,6 +128,7 @@ export async function upsertProjectXAccounts(
 }
 
 export async function upsertRawOrders(supabase: SupabaseClient, orders: RawOrderInsert[]) {
+  const ownerUserId = await loadOwnerUserId(supabase);
   for (const order of orders) {
     if (!order.external_order_id && !order.platform_order_id) continue;
 
@@ -134,17 +139,20 @@ export async function upsertRawOrders(supabase: SupabaseClient, orders: RawOrder
 
     if (selectError) throw selectError;
 
+    const payload = { ...order, user_id: ownerUserId };
+
     if (existing?.id) {
-      const { error } = await supabase.from("projectx_raw_orders").update(order).eq("id", existing.id);
+      const { error } = await supabase.from("projectx_raw_orders").update(payload).eq("id", existing.id);
       if (error) throw error;
     } else {
-      const { error } = await supabase.from("projectx_raw_orders").insert(order);
+      const { error } = await supabase.from("projectx_raw_orders").insert(payload);
       if (error) throw error;
     }
   }
 }
 
 export async function upsertRawFills(supabase: SupabaseClient, fills: RawFillInsert[]) {
+  const ownerUserId = await loadOwnerUserId(supabase);
   for (const fill of fills) {
     if (!fill.external_fill_id) continue;
 
@@ -156,11 +164,13 @@ export async function upsertRawFills(supabase: SupabaseClient, fills: RawFillIns
 
     if (selectError) throw selectError;
 
+    const payload = { ...fill, user_id: ownerUserId };
+
     if (existing?.id) {
-      const { error } = await supabase.from("projectx_raw_fills").update(fill).eq("id", existing.id);
+      const { error } = await supabase.from("projectx_raw_fills").update(payload).eq("id", existing.id);
       if (error) throw error;
     } else {
-      const { error } = await supabase.from("projectx_raw_fills").insert(fill);
+      const { error } = await supabase.from("projectx_raw_fills").insert(payload);
       if (error) throw error;
     }
   }
@@ -172,6 +182,7 @@ export async function upsertNormalizedTrades(
 ) {
   let upserted = 0;
   let duplicatesSkipped = 0;
+  const ownerUserId = await loadOwnerUserId(supabase);
 
   for (const trade of trades) {
     const { data: existing, error: selectError } = await supabase
@@ -194,6 +205,7 @@ export async function upsertNormalizedTrades(
         .from("trades")
         .update({
           account_id: trade.account_id,
+          user_id: ownerUserId,
           external_account_id: trade.external_account_id,
           sync_hash: trade.sync_hash,
           synced_at: trade.synced_at,
@@ -227,7 +239,7 @@ export async function upsertNormalizedTrades(
 
     const { data: inserted, error } = await supabase
       .from("trades")
-      .insert(withoutExecutions(trade))
+      .insert({ ...withoutExecutions(trade), user_id: ownerUserId })
       .select("id")
       .single();
     if (error) throw error;
@@ -238,6 +250,17 @@ export async function upsertNormalizedTrades(
   await preserveAndSupersedePairTrades(supabase, trades);
 
   return { upserted, duplicatesSkipped };
+}
+
+export async function loadOwnerUserId(supabase: SupabaseClient): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("app_owner")
+    .select("user_id")
+    .eq("id", true)
+    .maybeSingle();
+
+  if (error && error.code !== "PGRST116") throw error;
+  return (data?.user_id as string | null | undefined) ?? null;
 }
 
 export async function loadRawFillsForDay(

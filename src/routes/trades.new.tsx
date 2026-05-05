@@ -73,7 +73,10 @@ function AddTrade() {
     e.preventDefault();
     setSaving(true);
     try {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) throw new Error("צריך להתחבר כדי לשמור עסקה");
       const payload = {
+        user_id: userData.user.id,
         trade_date: f.trade_date,
         entry_time: f.entry_time || null,
         exit_time: f.exit_time || null,
@@ -111,11 +114,19 @@ function AddTrade() {
       for (const kind of kinds) {
         const file = files[kind];
         if (!file) continue;
-        const path = `${tradeId}/${kind}-${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
+        const safeName = file.name.replace(/[^\w.-]/g, "_");
+        const path = `${userData.user.id}/trades/${tradeId}/${kind}-${Date.now()}-${safeName}`;
         const { error: upErr } = await supabase.storage.from("screenshots").upload(path, file);
         if (upErr) { toast.error(`שגיאה בהעלאת צילום ${kind}: ${upErr.message}`); continue; }
-        const { data: pub } = supabase.storage.from("screenshots").getPublicUrl(path);
-        await supabase.from("screenshots").insert({ trade_id: tradeId, kind, url: pub.publicUrl });
+        await supabase.from("screenshots").insert({
+          trade_id: tradeId,
+          kind,
+          screenshot_type: kind,
+          screenshot_context: "trade",
+          storage_path: path,
+          url: path,
+          public_url: null,
+        });
       }
 
       toast.success("העסקה נשמרה ביומן");

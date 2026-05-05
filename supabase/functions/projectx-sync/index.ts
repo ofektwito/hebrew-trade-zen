@@ -10,6 +10,7 @@ import {
 import { normalizeFillsToTrades, type AccountConfig, type RawFillRow } from "../_shared/normalizer.ts";
 import {
   loadAccountConfigs,
+  loadOwnerUserId,
   updateSyncStatus,
   upsertProjectXAccounts,
   upsertRawFills,
@@ -46,9 +47,11 @@ serve(async (req) => {
     const rangeEnd = body.rangeEnd ?? now.toISOString();
 
     if (!dryRun) {
+      const ownerUserId = await loadOwnerUserId(supabase);
       const { data: run, error: runError } = await supabase
         .from("projectx_sync_runs")
         .insert({
+          user_id: ownerUserId,
           status: "running",
           range_start: rangeStart,
           range_end: rangeEnd,

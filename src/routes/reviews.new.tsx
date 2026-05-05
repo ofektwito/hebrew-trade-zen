@@ -102,7 +102,10 @@ function NewReview() {
     e.preventDefault();
     setSaving(true);
     try {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) throw new Error("צריך להתחבר כדי לשמור סקירה");
       const payload = {
+        user_id: userData.user.id,
         review_date: f.review_date,
         total_pnl: parseFloat(f.total_pnl) || 0,
         trades_count: parseInt(f.trades_count) || 0,

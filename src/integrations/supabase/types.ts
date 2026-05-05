@@ -77,6 +77,24 @@ export type Database = {
         }
         Relationships: []
       }
+      app_owner: {
+        Row: {
+          claimed_at: string | null
+          id: boolean
+          user_id: string | null
+        }
+        Insert: {
+          claimed_at?: string | null
+          id?: boolean
+          user_id?: string | null
+        }
+        Update: {
+          claimed_at?: string | null
+          id?: boolean
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       daily_reviews: {
         Row: {
           best_trade: string | null
@@ -463,6 +481,7 @@ export type Database = {
           message: string | null
           status: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           id: string
@@ -472,6 +491,7 @@ export type Database = {
           message?: string | null
           status?: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           id?: string
@@ -481,6 +501,7 @@ export type Database = {
           message?: string | null
           status?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -489,7 +510,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_personal_journal: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
