@@ -120,8 +120,12 @@ function AccountCard({
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs">
+        {account.broker_balance != null && <MiniStat label="Broker BAL" value={fmtMoney(account.broker_balance)} />}
+        {account.broker_realized_pnl != null && <MiniStat label="Broker RP&L" value={fmtMoney(account.broker_realized_pnl)} pnl={account.broker_realized_pnl} />}
+        {account.broker_realized_pnl != null && <MiniStat label="הפרש Broker-יומן" value={fmtMoney(account.broker_realized_pnl - metrics.totalPnl)} pnl={account.broker_realized_pnl - metrics.totalPnl} />}
         <MiniStat label="P&L היום" value={fmtMoney(metrics.todayPnl)} pnl={metrics.todayPnl} />
         <MiniStat label="P&L חודשי" value={fmtMoney(metrics.monthPnl)} pnl={metrics.monthPnl} />
+        <MiniStat label="P&L לפי יומן" value={fmtMoney(metrics.totalPnl)} pnl={metrics.totalPnl} />
         <MiniStat label="טריידים" value={String(metrics.tradeCount)} />
         <MiniStat label="סטופ יומי" value={`-${fmtMoney(Number(dailyLossLimit || 350))}`} />
       </div>

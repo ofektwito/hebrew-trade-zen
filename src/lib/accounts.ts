@@ -6,6 +6,10 @@ export type JournalAccount = {
   external_account_id: string | null;
   is_active: boolean | null;
   daily_loss_limit: number | null;
+  broker_balance: number | null;
+  broker_realized_pnl: number | null;
+  broker_unrealized_pnl: number | null;
+  broker_pnl_updated_at: string | null;
 };
 
 export const ALL_ACCOUNTS = "all";

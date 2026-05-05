@@ -34,7 +34,7 @@ export function AccountScopeProvider({ children }: { children: React.ReactNode }
     setLoadingAccounts(true);
     const { data } = await supabase
       .from("accounts")
-      .select("id, account_name, name, account_type, external_account_id, is_active, daily_loss_limit")
+      .select("id, account_name, name, account_type, external_account_id, is_active, daily_loss_limit, broker_balance, broker_realized_pnl, broker_unrealized_pnl, broker_pnl_updated_at")
       .order("created_at", { ascending: true });
 
     const rows = (data ?? []) as JournalAccount[];

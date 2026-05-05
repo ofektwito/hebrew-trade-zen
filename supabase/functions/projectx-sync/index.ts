@@ -66,12 +66,14 @@ serve(async (req) => {
     const client = new ProjectXClient(readProjectXConfig());
     let accountIds = readProjectXAccountIds();
     let accountConfigs: AccountConfig[] = [];
+    const sampleAccountPayloads: Array<Record<string, unknown>> = [];
 
     if (accountIds.length === 0) {
       const accounts = await client.fetchAccounts();
       if (accounts.length === 0) {
         throw new Error("לא נמצאו חשבונות ProjectX פעילים");
       }
+      sampleAccountPayloads.push(...accounts.slice(0, 1) as Array<Record<string, unknown>>);
       accountIds = accounts.map((account) => String(account.id));
       accountConfigs = dryRun
         ? accounts.map((account) => ({
@@ -119,12 +121,13 @@ serve(async (req) => {
         ordersCount,
         tradeExecutionsCount: allFills.length,
         normalizedTradesCount: normalizedTrades.length,
+        sampleAccountFields: sampleFieldNames(sampleAccountPayloads),
         sampleOrderFields: sampleFieldNames(sampleOrderPayloads),
         sampleTradeExecutionFields: sampleFieldNames(sampleTradeExecutionPayloads),
         mapping: {
           side: "0=buy, 1=sell",
           executionsSource: "/api/Trade/search",
-          fees: "Trade/search fees -> commission",
+          costs: "Trade/search fees + commissions -> trade commissions/costs",
         },
       });
     }
@@ -238,11 +241,19 @@ function mapProjectXFills(fills: Record<string, unknown>[], fallbackAccountId: s
     size: Number(fill.size ?? fill.quantity ?? fill.qty ?? 0),
     price: Number(fill.price ?? fill.fillPrice ?? 0),
     fill_time: String(fill.creationTimestamp ?? fill.fillTime ?? fill.timestamp ?? fill.createdAt ?? ""),
-    commission: fill.fees === undefined || fill.fees === null
-      ? fill.commission === undefined || fill.commission === null ? null : Number(fill.commission)
-      : Number(fill.fees),
+    // ProjectX Trade/search exposes realized profitAndLoss separately from costs.
+    // Both fees and commissions are charged costs; using only fees overstated
+    // account RP&L by the commission total.
+    commission: totalExecutionCosts(fill),
     raw_payload: fill,
   }));
+}
+
+function totalExecutionCosts(fill: Record<string, unknown>) {
+  const fees = numberOrNull(fill.fees) ?? 0;
+  const commissions = numberOrNull(fill.commissions ?? fill.commission) ?? 0;
+  const total = fees + commissions;
+  return total === 0 ? null : total;
 }
 
 function stringOrNull(value: unknown) {

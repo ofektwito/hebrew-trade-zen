@@ -61,7 +61,12 @@ function Dashboard() {
   const todayNet = sumPnl(todayTrades);
   const monthTrades = allTrades.filter((trade) => trade.trade_date?.startsWith(currentMonthISO()));
   const monthNet = sumPnl(monthTrades);
-  const accountNet = sumPnl(allTrades);
+  const journalNet = sumPnl(allTrades);
+  const brokerRealizedPnl = isAllAccounts
+    ? sumBrokerPnl(accounts)
+    : selectedAccount?.broker_realized_pnl ?? null;
+  const accountNet = brokerRealizedPnl ?? journalNet;
+  const reconciliationDiff = brokerRealizedPnl == null ? null : brokerRealizedPnl - journalNet;
   const totalComm = allTrades.reduce((s, t) => s + (t.commissions ?? 0), 0);
   const wins = allTrades.filter((t) => (t.net_pnl ?? 0) > 0);
   const losses = allTrades.filter((t) => (t.net_pnl ?? 0) < 0);
@@ -88,11 +93,18 @@ function Dashboard() {
       }`}>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-wider opacity-80 text-white">P&L כללי</p>
+            <p className="text-xs uppercase tracking-wider opacity-80 text-white">{brokerRealizedPnl == null ? "P&L לפי יומן" : "Broker RP&L"}</p>
             <p className="text-4xl font-extrabold mt-1 text-white">{fmtMoney(accountNet)}</p>
             <p className="text-sm mt-1 text-white/85">
-              {isAllAccounts ? "מחושב מהיומן לפי כל החשבונות" : `מחושב עבור ${accountDisplayName(selectedAccount)}`}
+              {brokerRealizedPnl == null
+                ? (isAllAccounts ? "מחושב מהיומן לפי כל החשבונות" : `מחושב מהיומן עבור ${accountDisplayName(selectedAccount)}`)
+                : "מקור: Account/search של ProjectX"}
             </p>
+            {brokerRealizedPnl != null && (
+              <p className="mt-1 text-xs text-white/75">
+                יומן: {fmtMoney(journalNet)} · הפרש: {fmtMoney(reconciliationDiff)}
+              </p>
+            )}
           </div>
           <div className="text-right text-white/90">
             <div className="text-xs">סה״כ עסקאות</div>
@@ -248,6 +260,15 @@ function Dashboard() {
 
 function sumPnl(trades: Trade[]) {
   return trades.reduce((sum, trade) => sum + (trade.net_pnl ?? 0), 0);
+}
+
+function sumBrokerPnl(accounts: ReturnType<typeof useAccountScope>["accounts"]) {
+  if (accounts.length === 0) return null;
+  if (accounts.some((account) => account.broker_realized_pnl === null || account.broker_realized_pnl === undefined)) {
+    return null;
+  }
+
+  return accounts.reduce((sum, account) => sum + (account.broker_realized_pnl ?? 0), 0);
 }
 
 function currentMonthISO() {

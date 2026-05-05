@@ -2,6 +2,12 @@ export type ProjectXAccount = {
   id: number;
   name: string;
   balance?: number | null;
+  realizedPnl?: number | null;
+  realizedPnL?: number | null;
+  realizedProfitAndLoss?: number | null;
+  unrealizedPnl?: number | null;
+  unrealizedPnL?: number | null;
+  unrealizedProfitAndLoss?: number | null;
   canTrade?: boolean;
   isVisible?: boolean;
 };

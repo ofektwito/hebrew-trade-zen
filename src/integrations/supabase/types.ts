@@ -19,6 +19,10 @@ export type Database = {
           account_name: string | null
           account_type: string | null
           broker: string | null
+          broker_balance: number | null
+          broker_pnl_updated_at: string | null
+          broker_realized_pnl: number | null
+          broker_unrealized_pnl: number | null
           commission_per_contract: number | null
           created_at: string
           daily_loss_limit: number | null
@@ -39,6 +43,10 @@ export type Database = {
           account_name?: string | null
           account_type?: string | null
           broker?: string | null
+          broker_balance?: number | null
+          broker_pnl_updated_at?: string | null
+          broker_realized_pnl?: number | null
+          broker_unrealized_pnl?: number | null
           commission_per_contract?: number | null
           created_at?: string
           daily_loss_limit?: number | null
@@ -59,6 +67,10 @@ export type Database = {
           account_name?: string | null
           account_type?: string | null
           broker?: string | null
+          broker_balance?: number | null
+          broker_pnl_updated_at?: string | null
+          broker_realized_pnl?: number | null
+          broker_unrealized_pnl?: number | null
           commission_per_contract?: number | null
           created_at?: string
           daily_loss_limit?: number | null

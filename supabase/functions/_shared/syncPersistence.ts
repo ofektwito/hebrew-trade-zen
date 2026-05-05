@@ -91,7 +91,10 @@ export async function upsertProjectXAccounts(
       broker: "projectx",
       external_source: "projectx",
       external_account_id: externalAccountId,
-      starting_balance: account.balance ?? null,
+      broker_balance: account.balance ?? null,
+      broker_realized_pnl: accountRealizedPnl(account),
+      broker_unrealized_pnl: accountUnrealizedPnl(account),
+      broker_pnl_updated_at: new Date().toISOString(),
       sync_status: "ok",
       sync_error: null,
       last_synced_at: new Date().toISOString(),
@@ -110,7 +113,7 @@ export async function upsertProjectXAccounts(
 
     const { data: inserted, error } = await supabase
       .from("accounts")
-      .insert({ ...payload, account_name: account.name, is_active: true })
+      .insert({ ...payload, account_name: account.name, starting_balance: inferStartingBalance(account), is_active: true })
       .select("id")
       .single();
 
@@ -123,6 +126,36 @@ export async function upsertProjectXAccounts(
   }
 
   return configs;
+}
+
+function accountRealizedPnl(account: ProjectXAccount) {
+  const explicit = firstNumber(account.realizedPnl, account.realizedPnL, account.realizedProfitAndLoss);
+  if (explicit !== null) return explicit;
+  const startingBalance = inferStartingBalance(account);
+  return account.balance !== undefined && account.balance !== null && startingBalance !== null
+    ? Number(account.balance) - startingBalance
+    : null;
+}
+
+function accountUnrealizedPnl(account: ProjectXAccount) {
+  return firstNumber(account.unrealizedPnl, account.unrealizedPnL, account.unrealizedProfitAndLoss) ?? 0;
+}
+
+function firstNumber(...values: Array<unknown>) {
+  for (const value of values) {
+    if (value === undefined || value === null || value === "") continue;
+    const numberValue = Number(value);
+    if (Number.isFinite(numberValue)) return numberValue;
+  }
+  return null;
+}
+
+function inferStartingBalance(account: ProjectXAccount) {
+  const label = `${account.name ?? ""}`.toUpperCase();
+  if (label.includes("50K")) return 50000;
+  if (label.includes("100K")) return 100000;
+  if (label.includes("150K")) return 150000;
+  return null;
 }
 
 export async function upsertRawOrders(supabase: SupabaseClient, orders: RawOrderInsert[]) {
