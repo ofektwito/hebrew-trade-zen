@@ -89,13 +89,11 @@ export function AccountSelector() {
       </SelectTrigger>
       <SelectContent align="end">
         <SelectItem value={ALL_ACCOUNTS}>כל החשבונות</SelectItem>
-        {accounts
-          .filter((account) => account.is_active !== false)
-          .map((account) => (
-            <SelectItem key={account.id} value={account.id}>
-              {accountDisplayName(account)}
-            </SelectItem>
-          ))}
+        {accounts.map((account) => (
+          <SelectItem key={account.id} value={account.id}>
+            {accountDisplayName(account)}
+          </SelectItem>
+        ))}
       </SelectContent>
     </Select>
   );

@@ -92,7 +92,6 @@ export async function upsertProjectXAccounts(
       external_source: "projectx",
       external_account_id: externalAccountId,
       starting_balance: account.balance ?? null,
-      is_active: account.canTrade ?? true,
       sync_status: "ok",
       sync_error: null,
       last_synced_at: new Date().toISOString(),
@@ -111,7 +110,7 @@ export async function upsertProjectXAccounts(
 
     const { data: inserted, error } = await supabase
       .from("accounts")
-      .insert({ ...payload, account_name: account.name })
+      .insert({ ...payload, account_name: account.name, is_active: true })
       .select("id")
       .single();
 
