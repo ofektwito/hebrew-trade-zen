@@ -3,6 +3,7 @@ import appCss from "../styles.css?url";
 import { AppShell } from "@/components/AppShell";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthGate } from "@/components/AuthGate";
+import { AccountScopeProvider } from "@/components/AccountScope";
 
 function NotFoundComponent() {
   return (
@@ -64,7 +65,9 @@ function RootComponent() {
   return (
     <>
       <AuthGate>
-        <AppShell />
+        <AccountScopeProvider>
+          <AppShell />
+        </AccountScopeProvider>
       </AuthGate>
       <Toaster richColors position="top-center" dir="rtl" />
     </>

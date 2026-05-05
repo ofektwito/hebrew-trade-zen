@@ -140,7 +140,7 @@ export function buildChatGPTSummary(trade: any): string {
 export function buildDailyReviewChatGPT(
   review: any,
   trades: any[],
-  screenshots?: { reviewScreenshots?: any[]; tradeScreenshots?: any[] },
+  screenshots?: { reviewScreenshots?: any[]; tradeScreenshots?: any[]; accountScope?: string; accountBreakdown?: Array<{ accountName: string; tradeCount: number; netPnl: number }> },
 ): string {
   const didWell = review.what_i_did_well ?? review.did_well ?? "";
   const didWrong = review.what_i_did_wrong ?? review.did_wrong ?? "";
@@ -151,17 +151,26 @@ export function buildDailyReviewChatGPT(
   const totalNet = trades.reduce((sum, trade) => sum + (trade.net_pnl ?? 0), 0);
   const winningTrades = trades.filter((trade) => (trade.net_pnl ?? 0) > 0).length;
   const winRate = trades.length ? (winningTrades / trades.length) * 100 : 0;
+  const scopedAccountReview = Boolean(screenshots?.accountScope && screenshots.accountScope !== "כל החשבונות");
   const reviewScreenshotRows = screenshots?.reviewScreenshots ?? [];
   const tradeScreenshotRows = screenshots?.tradeScreenshots ?? [];
 
   const lines = [
     `תאריך: ${review.review_date}`,
-    `P&L יומי: ${fmtMoney(review.total_pnl ?? totalNet)}`,
-    `מספר טריידים: ${review.trades_count ?? trades.length}`,
+    `חשבון: ${screenshots?.accountScope ?? "כל החשבונות"}`,
+    `P&L יומי: ${fmtMoney(scopedAccountReview ? totalNet : review.total_pnl ?? totalNet)}`,
+    `מספר טריידים: ${scopedAccountReview ? trades.length : review.trades_count ?? trades.length}`,
     `Win Rate: ${winRate.toFixed(0)}%`,
     `Catalyst מרכזי: ${review.main_catalyst ?? "—"}`,
     `מצב שוק: ${review.market_state ?? "—"}`,
     `הקשר שוק: ${review.market_context ?? "—"}`,
+    ...(screenshots?.accountBreakdown?.length
+      ? [
+          ``,
+          `פירוט לפי חשבון:`,
+          ...screenshots.accountBreakdown.map((row) => `- ${row.accountName}: ${fmtMoney(row.netPnl)} · ${row.tradeCount} טריידים`),
+        ]
+      : []),
     ``,
     `צילומי מסך:`,
     `- גרף יומי: ${hasScreenshot(reviewScreenshotRows, "daily_chart")}`,

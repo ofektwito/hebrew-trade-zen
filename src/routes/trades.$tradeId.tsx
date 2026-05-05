@@ -34,6 +34,7 @@ import {
 import { ScreenshotUploader } from "@/components/ScreenshotUploader";
 import { toast } from "sonner";
 import { ArrowLeft, Copy, Save, Trash2 } from "lucide-react";
+import { useAccountScope } from "@/components/AccountScope";
 
 export const Route = createFileRoute("/trades/$tradeId")({
   component: TradeDetails,
@@ -72,6 +73,7 @@ type EnrichmentForm = {
 
 function TradeDetails() {
   const { tradeId } = Route.useParams();
+  const { labelForAccount } = useAccountScope();
   const navigate = useNavigate();
   const [trade, setTrade] = useState<any>(null);
   const [executions, setExecutions] = useState<TradeExecutionRow[]>([]);
@@ -207,6 +209,7 @@ function TradeDetails() {
       <Card className="gradient-card space-y-2 p-4">
         <h3 className="text-sm font-bold text-primary">נתוני ביצוע</h3>
         <Row k="תאריך מסחר" v={formatDisplayDate(trade.trade_date)} />
+        <Row k="חשבון" v={labelForAccount(trade.account_id)} />
         <Row k="שעת כניסה" v={formatTradeTime(trade.entry_at, trade.entry_time)} />
         <Row k="שעת יציאה" v={formatTradeTime(trade.exit_at, trade.exit_time)} />
         <Row k="אזור זמן" v="מוצג לפי שעון ישראל" />

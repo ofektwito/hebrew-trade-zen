@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { todayISO, fmtMoney, pnlClass } from "@/lib/trade-utils";
 import { toast } from "sonner";
 import { ImagePlus, Save } from "lucide-react";
+import { useAccountScope } from "@/components/AccountScope";
+import { ALL_ACCOUNTS, accountDisplayName } from "@/lib/accounts";
 
 const searchSchema = z.object({ date: z.string().optional() });
 const MARKET_STATES = ["מגמתי", "מדשדש", "מונע חדשות", "לא ברור"] as const;
@@ -23,6 +25,7 @@ export const Route = createFileRoute("/reviews/new")({
 });
 
 function NewReview() {
+  const { selectedAccountId, selectedAccount, isAllAccounts } = useAccountScope();
   const { date } = Route.useSearch();
   const navigate = useNavigate();
   const initial = date ?? todayISO();
@@ -69,7 +72,9 @@ function NewReview() {
 
   useEffect(() => {
     (async () => {
-      const { data: trades } = await supabase.from("trades").select("*").is("superseded_by", null).eq("trade_date", f.review_date);
+      let query = supabase.from("trades").select("*").is("superseded_by", null).eq("trade_date", f.review_date);
+      if (selectedAccountId !== ALL_ACCOUNTS) query = query.eq("account_id", selectedAccountId);
+      const { data: trades } = await query;
       const t = trades ?? [];
       const total = t.reduce((s: number, x: any) => s + (x.net_pnl ?? 0), 0);
       const commissions = t.reduce((s: number, x: any) => s + (x.commissions ?? 0), 0);
@@ -96,7 +101,7 @@ function NewReview() {
         main_catalyst: p.main_catalyst || catalyst,
       }));
     })();
-  }, [f.review_date]);
+  }, [f.review_date, selectedAccountId]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -151,6 +156,10 @@ function NewReview() {
   return (
     <form onSubmit={onSubmit} className="space-y-4 pb-4">
       <h1 className="text-xl font-bold">סקירה יומית</h1>
+      <Card className="gradient-card p-3 text-sm">
+        <span className="text-muted-foreground">טווח סקירה: </span>
+        <span className="font-bold text-primary">{isAllAccounts ? "כל החשבונות" : accountDisplayName(selectedAccount)}</span>
+      </Card>
 
       <Card className="p-3 gradient-card border-primary/30">
         <div className="grid grid-cols-2 gap-2 text-center">

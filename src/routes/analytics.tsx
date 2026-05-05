@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { fmtMoney, isRuleViolation, pnlClass } from "@/lib/trade-utils";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, Cell, CartesianGrid } from "recharts";
+import { useAccountScope } from "@/components/AccountScope";
+import { ALL_ACCOUNTS, accountDisplayName } from "@/lib/accounts";
 
 export const Route = createFileRoute("/analytics")({
   component: Analytics,
@@ -12,29 +14,35 @@ export const Route = createFileRoute("/analytics")({
 const DAILY_LOSS_LIMIT = 1000;
 
 function Analytics() {
+  const { accounts, selectedAccountId, selectedAccount, isAllAccounts, labelForAccount } = useAccountScope();
   const [trades, setTrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
+      let query = supabase
         .from("trades")
         .select("*")
         .is("superseded_by", null)
         .order("trade_date", { ascending: true });
+      if (selectedAccountId !== ALL_ACCOUNTS) query = query.eq("account_id", selectedAccountId);
+      const { data } = await query;
       setTrades(data ?? []);
       setLoading(false);
     })();
-  }, []);
+  }, [selectedAccountId]);
 
-  const stats = useMemo(() => computeStats(trades), [trades]);
+  const stats = useMemo(() => computeStats(trades, accounts, isAllAccounts, selectedAccount?.daily_loss_limit), [trades, accounts, isAllAccounts, selectedAccount?.daily_loss_limit]);
 
   if (loading) return <div className="text-center text-muted-foreground py-8">טוען ניתוח...</div>;
   if (trades.length === 0) return <Card className="p-8 text-center gradient-card text-muted-foreground">עדיין אין עסקאות לניתוח</Card>;
 
   return (
     <div className="space-y-4 pb-4">
-      <h1 className="text-xl font-bold">ניתוח ביצועים</h1>
+      <div>
+        <h1 className="text-xl font-bold">ניתוח ביצועים</h1>
+        <p className="mt-1 text-xs text-muted-foreground">{isAllAccounts ? "כל החשבונות" : labelForAccount(selectedAccountId)}</p>
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
         <Stat label="סה״כ Net" value={fmtMoney(stats.totalNet)} pnl={stats.totalNet} />
@@ -58,6 +66,8 @@ function Analytics() {
       </ChartCard>
 
       <BreakdownCard title="P&L לפי נכס" data={stats.byInstrument} />
+      {isAllAccounts && <BreakdownCard title="P&L לפי חשבון" data={stats.byAccount} />}
+      {isAllAccounts && <AccountMetricsCard data={stats.accountMetrics} />}
       <BreakdownCard title="P&L לפי Catalyst" data={stats.byCatalyst} />
       <BreakdownCard title="P&L לפי Setup" data={stats.bySetup} />
       <BreakdownCard title="P&L לפי טעות" data={stats.byMistake} />
@@ -75,7 +85,7 @@ function Analytics() {
   );
 }
 
-function computeStats(trades: any[]) {
+function computeStats(trades: any[], accounts: ReturnType<typeof useAccountScope>["accounts"], isAllAccounts: boolean, selectedDailyLossLimit?: number | null) {
   const wins = trades.filter((t) => (t.net_pnl ?? 0) > 0);
   const losses = trades.filter((t) => (t.net_pnl ?? 0) < 0);
   const totalNet = trades.reduce((s, t) => s + (t.net_pnl ?? 0), 0);
@@ -89,7 +99,9 @@ function computeStats(trades: any[]) {
   const dates = Object.keys(byDate).sort();
   let cum = 0;
   const cumulative = dates.map((d) => ({ date: d, daily: byDate[d], cum: (cum += byDate[d]) }));
-  const dlLimitDays = dates.filter((d) => byDate[d] <= -DAILY_LOSS_LIMIT).length;
+  const dlLimitDays = isAllAccounts
+    ? dates.filter((date) => anyAccountHitLimitOnDate(trades, accounts, date)).length
+    : dates.filter((d) => byDate[d] <= -Number(selectedDailyLossLimit ?? 350)).length;
 
   const group = (key: string) => {
     const m: Record<string, number> = {};
@@ -101,6 +113,7 @@ function computeStats(trades: any[]) {
   };
 
   const byInstrument = group("instrument");
+  const byAccount = groupAccount(trades, accounts);
   const byCatalyst = group("catalyst");
   const bySetup = group("setup_type");
   const byMistake = group("mistake_type");
@@ -118,11 +131,49 @@ function computeStats(trades: any[]) {
   const planFollowedAvg = yes.length ? yes.reduce((s, t) => s + (t.net_pnl ?? 0), 0) / yes.length : 0;
   const planNotAvg = no.length ? no.reduce((s, t) => s + (t.net_pnl ?? 0), 0) / no.length : 0;
 
+  const accountMetrics = buildAccountMetrics(trades, accounts);
+
   return {
     totalNet, winRate, avgWin, avgLoss, cumulative, dlLimitDays,
-    byInstrument, byCatalyst, bySetup, byMistake, byQuality,
+    byInstrument, byAccount, byCatalyst, bySetup, byMistake, byQuality, accountMetrics,
     bestSetup, worstSetup, mostCommonMistake, planFollowedAvg, planNotAvg,
   };
+}
+
+function groupAccount(trades: any[], accounts: ReturnType<typeof useAccountScope>["accounts"]) {
+  const m: Record<string, number> = {};
+  trades.forEach((trade) => {
+    const account = accounts.find((row) => row.id === trade.account_id);
+    const key = accountDisplayName(account);
+    m[key] = (m[key] ?? 0) + (trade.net_pnl ?? 0);
+  });
+  return Object.entries(m).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+}
+
+function buildAccountMetrics(trades: any[], accounts: ReturnType<typeof useAccountScope>["accounts"]) {
+  return accounts.map((account) => {
+    const rows = trades.filter((trade) => trade.account_id === account.id);
+    const wins = rows.filter((trade) => (trade.net_pnl ?? 0) > 0);
+    const losses = rows.filter((trade) => (trade.net_pnl ?? 0) < 0);
+    return {
+      name: accountDisplayName(account),
+      pnl: rows.reduce((sum, trade) => sum + (trade.net_pnl ?? 0), 0),
+      winRate: rows.length ? (wins.length / rows.length) * 100 : 0,
+      avgWin: wins.length ? wins.reduce((sum, trade) => sum + (trade.net_pnl ?? 0), 0) / wins.length : 0,
+      avgLoss: losses.length ? losses.reduce((sum, trade) => sum + (trade.net_pnl ?? 0), 0) / losses.length : 0,
+      commissions: rows.reduce((sum, trade) => sum + (trade.commissions ?? 0), 0),
+      trades: rows.length,
+    };
+  }).filter((row) => row.trades > 0);
+}
+
+function anyAccountHitLimitOnDate(trades: any[], accounts: ReturnType<typeof useAccountScope>["accounts"], date: string) {
+  return accounts.some((account) => {
+    const pnl = trades
+      .filter((trade) => trade.account_id === account.id && trade.trade_date === date)
+      .reduce((sum, trade) => sum + (trade.net_pnl ?? 0), 0);
+    return pnl <= -Number(account.daily_loss_limit ?? 350);
+  });
 }
 
 function Stat({ label, value, pnl, accent }: { label: string; value: string; pnl?: number | null; accent?: boolean }) {
@@ -157,5 +208,29 @@ function BreakdownCard({ title, data }: { title: string; data: { name: string; v
         </BarChart>
       </ResponsiveContainer>
     </ChartCard>
+  );
+}
+
+function AccountMetricsCard({ data }: { data: Array<{ name: string; pnl: number; winRate: number; avgWin: number; avgLoss: number; commissions: number; trades: number }> }) {
+  if (!data.length) return null;
+  return (
+    <Card className="p-4 gradient-card space-y-2">
+      <h3 className="text-sm font-bold text-primary">מדדי חשבונות</h3>
+      {data.map((row) => (
+        <div key={row.name} className="rounded-lg border border-border/60 bg-input/20 p-3 text-xs">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="font-bold text-sm">{row.name}</span>
+            <span className={`font-bold ${pnlClass(row.pnl)}`}>{fmtMoney(row.pnl)}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Row k="Win Rate" v={`${row.winRate.toFixed(0)}%`} />
+            <Row k="טריידים" v={row.trades} />
+            <Row k="רווח ממוצע" v={fmtMoney(row.avgWin)} cls={pnlClass(row.avgWin)} />
+            <Row k="הפסד ממוצע" v={fmtMoney(row.avgLoss)} cls={pnlClass(row.avgLoss)} />
+            <Row k="עמלות" v={fmtMoney(row.commissions)} />
+          </div>
+        </div>
+      ))}
+    </Card>
   );
 }

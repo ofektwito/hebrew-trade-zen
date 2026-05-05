@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/select";
 import { FOLLOWED_PLAN, INSTRUMENTS, MISTAKE_TYPES, SETUP_TYPES, formatDisplayDate, formatDisplayTime, fmtMoney, fmtPoints, pnlClass } from "@/lib/trade-utils";
 import { Camera, FileText, Search, SlidersHorizontal } from "lucide-react";
+import { useAccountScope } from "@/components/AccountScope";
+import { ALL_ACCOUNTS } from "@/lib/accounts";
 
 export const Route = createFileRoute("/trades/")({
   component: TradesPage,
@@ -21,6 +23,7 @@ export const Route = createFileRoute("/trades/")({
 
 type TradeRow = {
   id: string;
+  account_id: string | null;
   source: string | null;
   trade_date: string;
   entry_time: string | null;
@@ -59,6 +62,7 @@ type Filters = {
 };
 
 function TradesPage() {
+  const { selectedAccountId, isAllAccounts, labelForAccount } = useAccountScope();
   const [trades, setTrades] = useState<TradeRow[]>([]);
   const [screenshotTradeIds, setScreenshotTradeIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -77,13 +81,17 @@ function TradesPage() {
 
   useEffect(() => {
     (async () => {
-      const [{ data: tradeRows }, { data: screenshotRows }] = await Promise.all([
-        supabase
+      let tradeQuery = supabase
           .from("trades")
           .select("*")
           .is("superseded_by", null)
           .order("trade_date", { ascending: false })
-          .order("entry_time", { ascending: false }),
+          .order("entry_time", { ascending: false });
+
+      if (selectedAccountId !== ALL_ACCOUNTS) tradeQuery = tradeQuery.eq("account_id", selectedAccountId);
+
+      const [{ data: tradeRows }, { data: screenshotRows }] = await Promise.all([
+        tradeQuery,
         supabase.from("screenshots").select("trade_id").not("trade_id", "is", null),
       ]);
 
@@ -91,7 +99,7 @@ function TradesPage() {
       setScreenshotTradeIds(new Set((screenshotRows ?? []).map((shot) => shot.trade_id).filter(Boolean)));
       setLoading(false);
     })();
-  }, []);
+  }, [selectedAccountId]);
 
   const filteredTrades = useMemo(
     () => trades.filter((trade) => matchesFilters(trade, filters, screenshotTradeIds)),
@@ -111,7 +119,7 @@ function TradesPage() {
         <div>
           <h1 className="text-xl font-bold">עסקאות</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            כל הטריידים המסונכרנים מ-ProjectX מוצגים כטרייד יומן אחד לכל lifecycle של פוזיציה.
+            {isAllAccounts ? "כל החשבונות" : labelForAccount(selectedAccountId)} · כל הטריידים המסונכרנים מ-ProjectX מוצגים כטרייד יומן אחד לכל lifecycle של פוזיציה.
           </p>
         </div>
         <Badge className="border-primary/30 bg-primary/10 text-primary" variant="outline">
@@ -181,7 +189,7 @@ function TradesPage() {
       ) : (
         <div className="space-y-2">
           {filteredTrades.map((trade) => (
-            <TradeCard key={trade.id} trade={trade} hasScreenshots={screenshotTradeIds.has(trade.id)} />
+            <TradeCard key={trade.id} trade={trade} hasScreenshots={screenshotTradeIds.has(trade.id)} accountLabel={labelForAccount(trade.account_id)} />
           ))}
         </div>
       )}
@@ -189,7 +197,7 @@ function TradesPage() {
   );
 }
 
-function TradeCard({ trade, hasScreenshots }: { trade: TradeRow; hasScreenshots: boolean }) {
+function TradeCard({ trade, hasScreenshots, accountLabel }: { trade: TradeRow; hasScreenshots: boolean; accountLabel: string }) {
   const hasLesson = Boolean(trade.lesson?.trim() || trade.notes?.trim());
   const displaySize = trade.max_position_size ?? trade.position_size ?? trade.size ?? "—";
   const totalOpened = trade.total_opened_size ?? trade.size ?? "—";
@@ -206,7 +214,7 @@ function TradeCard({ trade, hasScreenshots }: { trade: TradeRow; hasScreenshots:
               {trade.source === "projectx" && <Badge variant="secondary" className="text-[10px]">ProjectX</Badge>}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              {formatDisplayDate(trade.trade_date)} · {formatDisplayTimeFromTrade(trade.entry_time)}-{formatDisplayTimeFromTrade(trade.exit_time)} · {trade.direction} · max x{displaySize}
+              {accountLabel} · {formatDisplayDate(trade.trade_date)} · {formatDisplayTimeFromTrade(trade.entry_time)}-{formatDisplayTimeFromTrade(trade.exit_time)} · {trade.direction} · max x{displaySize}
             </div>
           </div>
           <div className={`shrink-0 text-left text-lg font-bold ${pnlClass(trade.net_pnl)}`}>{fmtMoney(trade.net_pnl)}</div>

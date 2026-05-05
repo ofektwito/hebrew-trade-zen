@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { fmtMoney, pnlClass } from "@/lib/trade-utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useAccountScope } from "@/components/AccountScope";
+import { ALL_ACCOUNTS, accountDisplayName, type JournalAccount } from "@/lib/accounts";
 
 export const Route = createFileRoute("/calendar")({
   component: CalendarPage,
@@ -16,6 +18,7 @@ const dayNames = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
 
 interface Trade {
   id: string;
+  account_id: string | null;
   trade_date: string;
   instrument: string;
   direction: string;
@@ -52,6 +55,7 @@ interface DayStats {
 }
 
 function CalendarPage() {
+  const { selectedAccountId, selectedAccount, isAllAccounts, accounts } = useAccountScope();
   const navigate = useNavigate();
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -65,37 +69,34 @@ function CalendarPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [{ data: tradeRows }, { data: reviewRows }, { data: accountRow }] = await Promise.all([
-        supabase
+      let tradeQuery = supabase
           .from("trades")
-          .select("id,trade_date,instrument,direction,net_pnl,catalyst,setup_type")
+          .select("id,account_id,trade_date,instrument,direction,net_pnl,catalyst,setup_type")
           .is("superseded_by", null)
           .gte("trade_date", monthStart)
           .lte("trade_date", monthEnd)
-          .order("trade_date", { ascending: true }),
+          .order("trade_date", { ascending: true });
+      if (selectedAccountId !== ALL_ACCOUNTS) tradeQuery = tradeQuery.eq("account_id", selectedAccountId);
+
+      const [{ data: tradeRows }, { data: reviewRows }] = await Promise.all([
+        tradeQuery,
         supabase
           .from("daily_reviews")
           .select("id,review_date,total_pnl,trades_count,main_catalyst,market_context,lessons,final_summary,reduce_size_tomorrow")
           .gte("review_date", monthStart)
           .lte("review_date", monthEnd)
           .order("review_date", { ascending: true }),
-        supabase
-          .from("accounts")
-          .select("daily_loss_limit")
-          .eq("is_active", true)
-          .limit(1)
-          .maybeSingle(),
       ]);
       setTrades((tradeRows ?? []) as Trade[]);
       setReviews((reviewRows ?? []) as Review[]);
-      setDailyLossLimit(Number(accountRow?.daily_loss_limit ?? DEFAULT_DAILY_LOSS_LIMIT));
+      setDailyLossLimit(Number(selectedAccount?.daily_loss_limit ?? DEFAULT_DAILY_LOSS_LIMIT));
       setLoading(false);
     })();
-  }, [monthStart, monthEnd]);
+  }, [monthStart, monthEnd, selectedAccountId, selectedAccount?.daily_loss_limit]);
 
   const { days, summary } = useMemo(
-    () => buildCalendar(month, trades, reviews, dailyLossLimit),
-    [month, trades, reviews, dailyLossLimit],
+    () => buildCalendar(month, trades, reviews, dailyLossLimit, accounts, isAllAccounts),
+    [month, trades, reviews, dailyLossLimit, accounts, isAllAccounts],
   );
 
   function goMonth(delta: number) {
@@ -117,7 +118,7 @@ function CalendarPage() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-xl font-bold">לוח שנה P&L</h1>
-          <p className="text-xs text-muted-foreground">{formatMonthTitle(month)}</p>
+          <p className="text-xs text-muted-foreground">{formatMonthTitle(month)} · {isAllAccounts ? "כל החשבונות" : accountDisplayName(selectedAccount)}</p>
         </div>
         <div className="flex items-center gap-1">
           <Button type="button" size="icon" variant="ghost" onClick={() => goMonth(-1)} aria-label="חודש קודם">
@@ -220,7 +221,7 @@ function SummaryCard({ label, value, pnl, accent }: { label: string; value: stri
   );
 }
 
-function buildCalendar(month: Date, trades: Trade[], reviews: Review[], dailyLossLimit: number) {
+function buildCalendar(month: Date, trades: Trade[], reviews: Review[], dailyLossLimit: number, accounts: JournalAccount[], isAllAccounts: boolean) {
   const reviewsByDate = new Map(reviews.map((review) => [review.review_date, review]));
   const tradesByDate = groupTradesByDate(trades);
   const first = startOfMonth(month);
@@ -235,7 +236,7 @@ function buildCalendar(month: Date, trades: Trade[], reviews: Review[], dailyLos
     const date = toISODate(current);
     const dayTrades = tradesByDate.get(date) ?? [];
     const review = reviewsByDate.get(date) ?? null;
-    const stats = summarizeDay(date, current.getDate(), current.getMonth() === month.getMonth(), dayTrades, review, dailyLossLimit);
+    const stats = summarizeDay(date, current.getDate(), current.getMonth() === month.getMonth(), dayTrades, review, dailyLossLimit, accounts, isAllAccounts);
     days.push(stats);
   }
 
@@ -250,6 +251,8 @@ function buildCalendar(month: Date, trades: Trade[], reviews: Review[], dailyLos
           dayTrades,
           reviewsByDate.get(dayTrades[0].trade_date) ?? null,
           dailyLossLimit,
+          accounts,
+          isAllAccounts,
         ),
       ),
     ),
@@ -263,11 +266,13 @@ function summarizeDay(
   trades: Trade[],
   review: Review | null,
   dailyLossLimit: number,
+  accounts: JournalAccount[],
+  isAllAccounts: boolean,
 ): DayStats {
   const net = trades.reduce((sum, trade) => sum + (trade.net_pnl ?? 0), 0);
   const winners = trades.filter((trade) => (trade.net_pnl ?? 0) > 0);
   const sorted = [...trades].sort((a, b) => (b.net_pnl ?? 0) - (a.net_pnl ?? 0));
-  const lossLimitHit = net <= -dailyLossLimit;
+  const lossLimitHit = isAllAccounts ? anyAccountHitDailyLimit(trades, accounts) : net <= -dailyLossLimit;
   const status = lossLimitHit ? "limit" : trades.length === 0 ? "none" : net > 0 ? "green" : net < 0 ? "red" : "even";
 
   return {
@@ -284,6 +289,19 @@ function summarizeDay(
     lossLimitHit,
     status,
   };
+}
+
+function anyAccountHitDailyLimit(trades: Trade[], accounts: JournalAccount[]) {
+  const pnlByAccount = new Map<string, number>();
+  for (const trade of trades) {
+    if (!trade.account_id) continue;
+    pnlByAccount.set(trade.account_id, (pnlByAccount.get(trade.account_id) ?? 0) + (trade.net_pnl ?? 0));
+  }
+  return [...pnlByAccount.entries()].some(([accountId, pnl]) => {
+    const account = accounts.find((row) => row.id === accountId);
+    const limit = Number(account?.daily_loss_limit ?? DEFAULT_DAILY_LOSS_LIMIT);
+    return pnl <= -limit;
+  });
 }
 
 function summarizeMonth(days: DayStats[]) {

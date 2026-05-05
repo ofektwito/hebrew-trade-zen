@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { TrendingUp, TrendingDown, Minus, AlertTriangle, Trophy, Target, CalendarDays, Wallet, Award } from "lucide-react";
+import { useAccountScope } from "@/components/AccountScope";
+import { ALL_ACCOUNTS, accountDisplayName } from "@/lib/accounts";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -13,6 +15,7 @@ export const Route = createFileRoute("/")({
 
 interface Trade {
   id: string;
+  account_id: string | null;
   trade_date: string;
   instrument: string;
   direction: string;
@@ -25,33 +28,35 @@ interface Trade {
   setup_type: string | null;
 }
 
-interface Account {
-  daily_loss_limit: number | null;
-}
-
 function Dashboard() {
+  const { accounts, selectedAccountId, selectedAccount, isAllAccounts } = useAccountScope();
   const [todayTrades, setTodayTrades] = useState<Trade[]>([]);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
   const [recent, setRecent] = useState<Trade[]>([]);
-  const [account, setAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       const today = todayISO();
-      const [{ data: todayData }, { data: allData }, { data: recentData }, { data: accountData }] = await Promise.all([
-        supabase.from("trades").select("*").is("superseded_by", null).eq("trade_date", today),
-        supabase.from("trades").select("*").is("superseded_by", null).order("trade_date", { ascending: false }),
-        supabase.from("trades").select("*").is("superseded_by", null).order("trade_date", { ascending: false }).order("created_at", { ascending: false }).limit(8),
-        supabase.from("accounts").select("daily_loss_limit").eq("is_active", true).limit(1).maybeSingle(),
+      let todayQuery = supabase.from("trades").select("*").is("superseded_by", null).eq("trade_date", today);
+      let allQuery = supabase.from("trades").select("*").is("superseded_by", null).order("trade_date", { ascending: false });
+      let recentQuery = supabase.from("trades").select("*").is("superseded_by", null).order("trade_date", { ascending: false }).order("created_at", { ascending: false }).limit(8);
+      if (selectedAccountId !== ALL_ACCOUNTS) {
+        todayQuery = todayQuery.eq("account_id", selectedAccountId);
+        allQuery = allQuery.eq("account_id", selectedAccountId);
+        recentQuery = recentQuery.eq("account_id", selectedAccountId);
+      }
+      const [{ data: todayData }, { data: allData }, { data: recentData }] = await Promise.all([
+        todayQuery,
+        allQuery,
+        recentQuery,
       ]);
       setTodayTrades((todayData ?? []) as Trade[]);
       setAllTrades((allData ?? []) as Trade[]);
       setRecent((recentData ?? []) as Trade[]);
-      setAccount(accountData as Account | null);
       setLoading(false);
     })();
-  }, []);
+  }, [selectedAccountId]);
 
   const todayNet = sumPnl(todayTrades);
   const monthTrades = allTrades.filter((trade) => trade.trade_date?.startsWith(currentMonthISO()));
@@ -68,8 +73,10 @@ function Dashboard() {
   const disciplineAvg = allTrades.length
     ? allTrades.reduce((s, t) => s + (qualityScores[t.trade_quality ?? ""] ?? 5), 0) / allTrades.length
     : 0;
-  const dailyLossLimit = Number(account?.daily_loss_limit ?? 350);
+  const dailyLossLimit = Number(selectedAccount?.daily_loss_limit ?? 350);
   const dailyLossUsed = todayNet < 0 && dailyLossLimit > 0 ? Math.min(100, Math.abs(todayNet) / dailyLossLimit * 100) : 0;
+  const accountBreakdown = useMemo(() => buildAccountBreakdown(accounts, allTrades), [accounts, allTrades]);
+  const accountDailyLossRows = useMemo(() => buildAccountDailyLossRows(accounts, todayTrades), [accounts, todayTrades]);
 
   const status = accountNet > 0 ? "green" : accountNet < 0 ? "red" : "even";
 
@@ -83,7 +90,9 @@ function Dashboard() {
           <div>
             <p className="text-xs uppercase tracking-wider opacity-80 text-white">P&L כללי</p>
             <p className="text-4xl font-extrabold mt-1 text-white">{fmtMoney(accountNet)}</p>
-            <p className="text-sm mt-1 text-white/85">מחושב מהיומן לפי כל הטריידים המסונכרנים</p>
+            <p className="text-sm mt-1 text-white/85">
+              {isAllAccounts ? "מחושב מהיומן לפי כל החשבונות" : `מחושב עבור ${accountDisplayName(selectedAccount)}`}
+            </p>
           </div>
           <div className="text-right text-white/90">
             <div className="text-xs">סה״כ עסקאות</div>
@@ -147,22 +156,61 @@ function Dashboard() {
         <Stat label="ציון משמעת" value={`${disciplineAvg.toFixed(1)}/10`} icon={<Trophy className="h-4 w-4" />} accent="primary" />
       </div>
 
-      <Card className="p-4 gradient-card border-border/60 shadow-card">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground">התקדמות סטופ יומי</p>
-            <p className={`mt-1 text-xl font-bold ${pnlClass(todayNet)}`}>{fmtMoney(todayNet)} / -{fmtMoney(dailyLossLimit)}</p>
+      {isAllAccounts ? (
+        <Card className="p-4 gradient-card border-border/60 shadow-card">
+          <h2 className="text-sm font-bold text-primary">סטופ יומי לפי חשבון</h2>
+          <p className="mt-1 text-[11px] text-muted-foreground">במצב כל החשבונות לא משתמשים במגבלה אחת משותפת.</p>
+          <div className="mt-3 space-y-2">
+            {accountDailyLossRows.length === 0 ? (
+              <p className="text-xs text-muted-foreground">אין טריידים היום.</p>
+            ) : accountDailyLossRows.map((row) => (
+              <div key={row.account.id} className="rounded-lg bg-input/25 px-3 py-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold">{accountDisplayName(row.account)}</span>
+                  <span className={pnlClass(row.pnl)}>{fmtMoney(row.pnl)} / -{fmtMoney(row.limit)}</span>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className={`h-full rounded-full ${row.used >= 100 ? "bg-loss" : "bg-warning"}`} style={{ width: `${row.used}%` }} />
+                </div>
+              </div>
+            ))}
           </div>
-          <Badge variant={dailyLossUsed >= 100 ? "destructive" : "secondary"}>{dailyLossUsed.toFixed(0)}%</Badge>
-        </div>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-          <div
-            className={`h-full rounded-full ${dailyLossUsed >= 100 ? "bg-loss" : "bg-warning"}`}
-            style={{ width: `${dailyLossUsed}%` }}
-          />
-        </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">מגבלת הפסד יומית לפי החשבון הפעיל, עם fallback של $350 אם אין ערך.</p>
-      </Card>
+        </Card>
+      ) : (
+        <Card className="p-4 gradient-card border-border/60 shadow-card">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground">התקדמות סטופ יומי</p>
+              <p className={`mt-1 text-xl font-bold ${pnlClass(todayNet)}`}>{fmtMoney(todayNet)} / -{fmtMoney(dailyLossLimit)}</p>
+            </div>
+            <Badge variant={dailyLossUsed >= 100 ? "destructive" : "secondary"}>{dailyLossUsed.toFixed(0)}%</Badge>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+            <div
+              className={`h-full rounded-full ${dailyLossUsed >= 100 ? "bg-loss" : "bg-warning"}`}
+              style={{ width: `${dailyLossUsed}%` }}
+            />
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">מגבלת הפסד יומית לפי החשבון הנבחר, עם fallback של $350 אם אין ערך.</p>
+        </Card>
+      )}
+
+      {isAllAccounts && accountBreakdown.length > 0 && (
+        <Card className="p-4 gradient-card border-border/60 shadow-card">
+          <h2 className="mb-3 text-sm font-bold text-primary">פירוט לפי חשבון</h2>
+          <div className="space-y-2">
+            {accountBreakdown.map((row) => (
+              <div key={row.account.id} className="flex items-center justify-between rounded-lg bg-input/25 px-3 py-2 text-sm">
+                <div>
+                  <div className="font-semibold">{accountDisplayName(row.account)}</div>
+                  <div className="text-[11px] text-muted-foreground">{row.trades} טריידים</div>
+                </div>
+                <div className={`font-bold ${pnlClass(row.pnl)}`}>{fmtMoney(row.pnl)}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {violations > 0 && (
         <Card className="p-3 bg-loss/10 border-loss/40 flex items-center gap-2">
@@ -204,6 +252,31 @@ function sumPnl(trades: Trade[]) {
 
 function currentMonthISO() {
   return dateInputValueInTimeZone(new Date()).slice(0, 7);
+}
+
+function buildAccountBreakdown(accounts: ReturnType<typeof useAccountScope>["accounts"], trades: Trade[]) {
+  return accounts
+    .map((account) => {
+      const accountTrades = trades.filter((trade) => trade.account_id === account.id);
+      return {
+        account,
+        trades: accountTrades.length,
+        pnl: sumPnl(accountTrades),
+      };
+    })
+    .filter((row) => row.trades > 0);
+}
+
+function buildAccountDailyLossRows(accounts: ReturnType<typeof useAccountScope>["accounts"], trades: Trade[]) {
+  return accounts
+    .map((account) => {
+      const accountTrades = trades.filter((trade) => trade.account_id === account.id);
+      const pnl = sumPnl(accountTrades);
+      const limit = Number(account.daily_loss_limit ?? 350);
+      const used = pnl < 0 && limit > 0 ? Math.min(100, Math.abs(pnl) / limit * 100) : 0;
+      return { account, pnl, limit, used, trades: accountTrades.length };
+    })
+    .filter((row) => row.trades > 0);
 }
 
 function Stat({ label, value, pnl, icon, accent }: { label: string; value: string; pnl?: number | null; icon?: React.ReactNode; accent?: "primary" }) {

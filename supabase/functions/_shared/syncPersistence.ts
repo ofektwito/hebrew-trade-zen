@@ -78,7 +78,7 @@ export async function upsertProjectXAccounts(
     const externalAccountId = String(account.id);
     const { data: existing, error: selectError } = await supabase
       .from("accounts")
-      .select("id")
+      .select("id, commission_per_contract")
       .eq("external_source", "projectx")
       .eq("external_account_id", externalAccountId)
       .maybeSingle();
@@ -88,7 +88,6 @@ export async function upsertProjectXAccounts(
     const payload = {
       name: account.name,
       user_id: ownerUserId,
-      account_name: account.name,
       broker: "projectx",
       external_source: "projectx",
       external_account_id: externalAccountId,
@@ -105,14 +104,14 @@ export async function upsertProjectXAccounts(
       configs.push({
         account_id: existing.id as string,
         external_account_id: externalAccountId,
-        commission_per_contract: 0,
+        commission_per_contract: Number(existing.commission_per_contract ?? 0),
       });
       continue;
     }
 
     const { data: inserted, error } = await supabase
       .from("accounts")
-      .insert(payload)
+      .insert({ ...payload, account_name: account.name })
       .select("id")
       .single();
 

@@ -8,6 +8,8 @@ import { ScreenshotUploader } from "@/components/ScreenshotUploader";
 import { fmtMoney, fmtPoints, pnlClass, buildDailyReviewChatGPT, formatDisplayTime } from "@/lib/trade-utils";
 import { toast } from "sonner";
 import { Copy, Trash2, ArrowLeft } from "lucide-react";
+import { useAccountScope } from "@/components/AccountScope";
+import { ALL_ACCOUNTS, accountDisplayName } from "@/lib/accounts";
 
 export const Route = createFileRoute("/reviews/$reviewId")({
   component: ReviewDetails,
@@ -22,6 +24,7 @@ const dailyReviewScreenshotTypes = [
 
 function ReviewDetails() {
   const { reviewId } = Route.useParams();
+  const { selectedAccountId, selectedAccount, isAllAccounts, accounts, labelForAccount } = useAccountScope();
   const navigate = useNavigate();
   const [review, setReview] = useState<any>(null);
   const [trades, setTrades] = useState<any[]>([]);
@@ -31,15 +34,17 @@ function ReviewDetails() {
 
   useEffect(() => {
     void loadReview();
-  }, [reviewId]);
+  }, [reviewId, selectedAccountId]);
 
   async function loadReview() {
     setLoading(true);
     const { data: r } = await supabase.from("daily_reviews").select("*").eq("id", reviewId).maybeSingle();
     setReview(r);
     if (r) {
+      let tradeQuery = supabase.from("trades").select("*").is("superseded_by", null).eq("trade_date", r.review_date).order("entry_time", { ascending: true });
+      if (selectedAccountId !== ALL_ACCOUNTS) tradeQuery = tradeQuery.eq("account_id", selectedAccountId);
       const [{ data: t }, { data: reviewShots }] = await Promise.all([
-        supabase.from("trades").select("*").is("superseded_by", null).eq("trade_date", r.review_date).order("entry_time", { ascending: true }),
+        tradeQuery,
         supabase.from("screenshots").select("*").eq("review_id", reviewId).order("created_at", { ascending: true }),
       ]);
       const dayTrades = t ?? [];
@@ -64,7 +69,12 @@ function ReviewDetails() {
   if (!review) return <div className="text-center text-muted-foreground py-8">הסקירה לא נמצאה</div>;
 
   async function copyForChatGPT() {
-    await navigator.clipboard.writeText(buildDailyReviewChatGPT(review, trades, { reviewScreenshots, tradeScreenshots }));
+    await navigator.clipboard.writeText(buildDailyReviewChatGPT(review, trades, {
+      reviewScreenshots,
+      tradeScreenshots,
+      accountScope: isAllAccounts ? "כל החשבונות" : accountDisplayName(selectedAccount),
+      accountBreakdown: buildReviewAccountBreakdown(trades, accounts),
+    } as any));
     toast.success("הועתק ל-Clipboard");
   }
   async function onDelete() {
@@ -82,7 +92,7 @@ function ReviewDetails() {
   const finalTakeaway = review.final_takeaway ?? review.final_summary;
 
   const stats = getDayStats(trades);
-  const totalNet = review.total_pnl ?? stats.totalNet;
+  const totalNet = isAllAccounts ? (review.total_pnl ?? stats.totalNet) : stats.totalNet;
   const profit = totalNet > 0;
 
   return (
@@ -93,6 +103,11 @@ function ReviewDetails() {
           <ArrowLeft className="h-4 w-4 ml-1 rotate-180" /> חזרה לסקירות
         </Button>
       </div>
+
+      <Card className="gradient-card p-3 text-sm">
+        <span className="text-muted-foreground">טווח סקירה: </span>
+        <span className="font-bold text-primary">{isAllAccounts ? "כל החשבונות" : labelForAccount(selectedAccountId)}</span>
+      </Card>
 
       <Card className={`p-5 border-0 shadow-card ${profit ? "gradient-profit glow-profit" : "gradient-loss glow-loss"}`}>
         <div className="text-white">
@@ -113,6 +128,7 @@ function ReviewDetails() {
       <Card className="p-4 gradient-card space-y-2">
         <h3 className="text-sm font-bold text-primary">סיכום היום</h3>
         <Row k="תאריך" v={review.review_date} />
+        <Row k="חשבון" v={isAllAccounts ? "כל החשבונות" : labelForAccount(selectedAccountId)} />
         <Row k="Net P&L" v={fmtMoney(totalNet)} cls={pnlClass(totalNet)} />
         <Row k="Gross P&L" v={fmtMoney(stats.totalGross)} cls={pnlClass(stats.totalGross)} />
         <Row k="עמלות" v={fmtMoney(stats.totalCommissions)} />
@@ -126,6 +142,15 @@ function ReviewDetails() {
         <Row k="פגעתי בסטופ יומי?" v={review.daily_loss_limit_hit ? "כן" : "לא"} />
         <Row k="Overtrade?" v={review.overtraded ? "כן" : "לא"} />
       </Card>
+
+      {isAllAccounts && (
+        <Card className="p-4 gradient-card space-y-2">
+          <h3 className="text-sm font-bold text-primary">פירוט לפי חשבון</h3>
+          {buildReviewAccountBreakdown(trades, accounts).map((row) => (
+            <Row key={row.accountName} k={`${row.accountName} · ${row.tradeCount} טריידים`} v={fmtMoney(row.netPnl)} cls={pnlClass(row.netPnl)} />
+          ))}
+        </Card>
+      )}
 
       {review.daily_summary && <TextCard title="סיכום היום" text={review.daily_summary} />}
       {review.market_context && <TextCard title="הקשר שוק" text={review.market_context} />}
@@ -254,4 +279,17 @@ function mostCommonCatalyst(trades: any[]) {
     counts.set(trade.catalyst, (counts.get(trade.catalyst) ?? 0) + 1);
   }
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
+
+function buildReviewAccountBreakdown(trades: any[], accounts: ReturnType<typeof useAccountScope>["accounts"]) {
+  return accounts
+    .map((account) => {
+      const rows = trades.filter((trade) => trade.account_id === account.id);
+      return {
+        accountName: accountDisplayName(account),
+        tradeCount: rows.length,
+        netPnl: rows.reduce((sum, trade) => sum + (trade.net_pnl ?? 0), 0),
+      };
+    })
+    .filter((row) => row.tradeCount > 0);
 }

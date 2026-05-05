@@ -8,9 +8,11 @@ import {
   ListChecks,
   LogOut,
   RefreshCw,
+  WalletCards,
   WifiOff,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { AccountSelector } from "@/components/AccountScope";
 
 const tabs = [
   { to: "/", label: "יומן", icon: LayoutDashboard },
@@ -40,7 +42,15 @@ export function AppShell() {
             <span className="text-foreground"> מסחר</span>
           </Link>
           <div className="flex min-w-0 items-center gap-2">
+            <AccountSelector />
             <SyncStatusIndicator />
+            <Link
+              to="/accounts"
+              title="חשבונות"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-input/30 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <WalletCards className="h-3.5 w-3.5" />
+            </Link>
             <button
               type="button"
               title="התנתק"
