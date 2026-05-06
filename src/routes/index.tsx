@@ -103,10 +103,10 @@ function Dashboard() {
       <Card className={`p-5 border-0 shadow-card ${
         status === "green" ? "gradient-profit glow-profit" : status === "red" ? "gradient-loss glow-loss" : "gradient-card"
       }`}>
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <p className="text-xs uppercase tracking-wider opacity-80 text-white">{brokerRealizedPnl == null ? "P&L לפי יומן" : "Broker RP&L"}</p>
-            <p className="text-4xl font-extrabold mt-1 text-white">{fmtMoney(accountNet)}</p>
+            <p className="mt-1 break-words text-3xl font-extrabold text-white sm:text-4xl">{fmtMoney(accountNet)}</p>
             <p className="text-sm mt-1 text-white/85">
               {brokerRealizedPnl == null
                 ? (isAllAccounts ? "מחושב מהיומן לפי כל החשבונות" : `מחושב מהיומן עבור ${accountDisplayName(selectedAccount)}`)
@@ -118,7 +118,7 @@ function Dashboard() {
               </p>
             )}
           </div>
-          <div className="text-right text-white/90">
+          <div className="shrink-0 text-right text-white/90">
             <div className="text-xs">סה״כ עסקאות</div>
             <div className="text-2xl font-bold">{allTrades.length}</div>
           </div>
@@ -138,16 +138,16 @@ function Dashboard() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wide opacity-80">Topstep</p>
-                    <h2 className="text-2xl font-extrabold leading-tight">Certified Funded Trader</h2>
+                    <h2 className="text-xl font-extrabold leading-tight sm:text-2xl">Certified Funded Trader</h2>
                   </div>
-                  <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
-                    <Award className="h-7 w-7" />
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground sm:h-12 sm:w-12">
+                    <Award className="h-6 w-6 sm:h-7 sm:w-7" />
                   </div>
                 </div>
               </div>
               <div className="space-y-2 p-4 text-center">
                 <p className="text-xs font-semibold text-muted-foreground">This certificate recognizes</p>
-                <p className="text-3xl font-extrabold tracking-tight text-foreground">Ofek Twito</p>
+                <p className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">Ofek Twito</p>
                 <p className="mx-auto max-w-sm text-sm leading-relaxed text-muted-foreground">
                   On April 30, 2026, you passed the Trading Combine and officially became a Topstep Funded Trader.
                 </p>

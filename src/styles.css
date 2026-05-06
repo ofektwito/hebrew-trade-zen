@@ -84,20 +84,34 @@
   --shadow-card: 0 6px 24px -8px oklch(0 0 0 / 0.45);
   --shadow-glow-profit: 0 0 24px -6px oklch(0.74 0.18 145 / 0.5);
   --shadow-glow-loss: 0 0 24px -6px oklch(0.65 0.23 25 / 0.5);
+  --bottom-nav-height: 4.25rem;
+  --app-safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .dark { /* identical - app is dark by default */ }
 
 @layer base {
   * { border-color: var(--color-border); }
-  html { direction: rtl; }
+  html {
+    direction: rtl;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
   body {
+    min-height: 100%;
+    overflow-x: hidden;
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: 'Heebo', 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
+  #root {
+    min-height: 100%;
+    overflow-x: hidden;
+  }
   input, textarea, select { font-family: inherit; }
+  img, svg, video, canvas { max-width: 100%; }
+  button, a, input, textarea, select { min-width: 0; }
 }
 
 @layer utilities {
@@ -111,4 +125,25 @@
   .shadow-card { box-shadow: var(--shadow-card); }
   .glow-profit { box-shadow: var(--shadow-glow-profit); }
   .glow-loss { box-shadow: var(--shadow-glow-loss); }
+
+  .app-shell {
+    min-height: 100dvh;
+  }
+
+  .app-main {
+    padding-bottom: calc(1rem + var(--bottom-nav-height) + var(--app-safe-bottom));
+  }
+
+  .app-bottom-nav {
+    min-height: calc(var(--bottom-nav-height) + var(--app-safe-bottom));
+    padding-bottom: var(--app-safe-bottom);
+  }
+
+  @media (max-width: 640px) {
+    .app-main {
+      width: 100%;
+      padding-left: 0.875rem;
+      padding-right: 0.875rem;
+    }
+  }
 }

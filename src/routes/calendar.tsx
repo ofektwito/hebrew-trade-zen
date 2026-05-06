@@ -171,17 +171,17 @@ function CalendarPage() {
                 type="button"
                 onClick={() => onDayClick(day)}
                 disabled={!day.review && day.tradeCount === 0}
-                className={`min-h-[84px] rounded-lg border p-1.5 text-right transition-colors ${dayClass(day)} ${
+                className={`min-h-[74px] min-w-0 rounded-lg border p-1 text-right transition-colors sm:min-h-[84px] sm:p-1.5 ${dayClass(day)} ${
                   day.inMonth ? "" : "opacity-35"
                 } ${day.review || day.tradeCount > 0 ? "hover:border-primary/80" : "cursor-default"}`}
               >
                 <div className="flex items-start justify-between gap-1">
                   <span className="text-xs font-bold text-foreground">{day.day}</span>
-                  {day.lossLimitHit && <span className="rounded bg-warning/20 px-1 text-[9px] font-bold text-warning">סטופ יומי</span>}
+                  {day.lossLimitHit && <span className="max-w-[52px] truncate rounded bg-warning/20 px-1 text-[9px] font-bold text-warning sm:max-w-none">סטופ יומי</span>}
                 </div>
 
                 <div className="mt-1 space-y-1">
-                  <div className={`text-[11px] font-bold leading-none ${pnlClass(day.net)}`}>{day.tradeCount ? fmtMoney(day.net) : "ללא מסחר"}</div>
+                  <div className={`truncate text-[10px] font-bold leading-none sm:text-[11px] ${pnlClass(day.net)}`}>{day.tradeCount ? fmtMoney(day.net) : "ללא מסחר"}</div>
                   {day.tradeCount > 0 && (
                     <>
                       <div className="text-[10px] text-muted-foreground">{day.tradeCount} עסקאות</div>

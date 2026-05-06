@@ -41,41 +41,39 @@ export function AppShell() {
   const path = location.pathname;
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-20" dir="rtl">
+    <div className="app-shell min-h-screen bg-background text-foreground" dir="rtl">
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
-          <Link to="/" className="shrink-0 text-lg font-bold tracking-tight">
-            <span className="text-primary">יומן</span>
-            <span className="text-foreground"> מסחר</span>
-          </Link>
-          <div className="flex min-w-0 items-center gap-2">
-            <AccountSelector />
-            <SyncStatusIndicator />
-            <Link
-              to="/accounts"
-              title="חשבונות"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-input/30 text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <WalletCards className="h-3.5 w-3.5" />
+        <div className="mx-auto flex max-w-2xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <Link to="/" className="shrink-0 text-lg font-bold tracking-tight">
+              <span className="text-primary">יומן</span>
+              <span className="text-foreground"> מסחר</span>
             </Link>
-            <button
-              type="button"
-              title="התנתק"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-input/30 text-muted-foreground transition-colors hover:text-foreground"
-              onClick={() => supabase.auth.signOut()}
-            >
-              <LogOut className="h-3.5 w-3.5" />
-            </button>
-            <span className="hidden text-xs text-muted-foreground sm:inline">Futures · מסחר אישי</span>
+            <div className="flex shrink-0 items-center gap-2 sm:hidden">
+              <HeaderIconLink />
+              <LogoutButton />
+            </div>
+          </div>
+
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
+            <div className="min-w-0 flex-1 sm:flex-none">
+              <AccountSelector />
+            </div>
+            <SyncStatusIndicator />
+            <div className="hidden shrink-0 items-center gap-2 sm:flex">
+              <HeaderIconLink />
+              <LogoutButton />
+              <span className="hidden text-xs text-muted-foreground sm:inline">Futures · מסחר אישי</span>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-4 py-4">
+      <main className="app-main mx-auto max-w-2xl px-4 py-4">
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 backdrop-blur">
+      <nav className="app-bottom-nav fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 backdrop-blur">
         <div className="mx-auto grid max-w-2xl grid-cols-5">
           {tabs.map(({ to, label, icon: Icon }) => {
             const active = to === "/" ? path === "/" : path.startsWith(to);
@@ -83,18 +81,43 @@ export function AppShell() {
               <Link
                 key={to}
                 to={to}
-                className={`flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${
+                className={`flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[10px] font-medium transition-colors ${
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <Icon className={`h-5 w-5 ${active ? "scale-110" : ""} transition-transform`} />
-                <span>{label}</span>
+                <span className="max-w-full truncate">{label}</span>
               </Link>
             );
           })}
         </div>
       </nav>
     </div>
+  );
+}
+
+function HeaderIconLink() {
+  return (
+    <Link
+      to="/accounts"
+      title="חשבונות"
+      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-input/30 text-muted-foreground transition-colors hover:text-foreground"
+    >
+      <WalletCards className="h-3.5 w-3.5" />
+    </Link>
+  );
+}
+
+function LogoutButton() {
+  return (
+    <button
+      type="button"
+      title="התנתק"
+      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-input/30 text-muted-foreground transition-colors hover:text-foreground"
+      onClick={() => supabase.auth.signOut()}
+    >
+      <LogOut className="h-3.5 w-3.5" />
+    </button>
   );
 }
 
@@ -149,12 +172,12 @@ function SyncStatusIndicator() {
   const refreshLabel = isRefreshing ? "מרענן..." : "רענן עכשיו";
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex min-w-0 shrink-0 items-center gap-1">
       <span
         title={syncStatus?.message ?? "סטטוס סנכרון ProjectX"}
-        className={`inline-flex max-w-[150px] items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium ${presentation.className}`}
+        className={`inline-flex max-w-[128px] items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium sm:max-w-[150px] ${presentation.className}`}
       >
-        <Icon className={`h-3.5 w-3.5 ${syncStatus?.status === "syncing" ? "animate-spin" : ""}`} />
+        <Icon className={`h-3.5 w-3.5 shrink-0 ${syncStatus?.status === "syncing" ? "animate-spin" : ""}`} />
         <span className="truncate">{presentation.label}</span>
       </span>
       <button
@@ -162,7 +185,7 @@ function SyncStatusIndicator() {
         title="רענן נתוני ProjectX עכשיו"
         disabled={isRefreshing}
         onClick={handleRefreshNow}
-        className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-input/30 px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-border bg-input/30 px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
       >
         <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
         <span className="hidden sm:inline">{refreshLabel}</span>

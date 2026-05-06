@@ -142,7 +142,7 @@ export function AccountSelector() {
 
   return (
     <Select value={selectedAccountId} onValueChange={setSelectedAccountId} disabled={loadingAccounts}>
-      <SelectTrigger className="h-8 max-w-[220px] rounded-full border-border bg-input/40 px-3 text-xs font-semibold">
+      <SelectTrigger className="h-8 w-full min-w-0 max-w-full rounded-full border-border bg-input/40 px-3 text-xs font-semibold sm:max-w-[220px]">
         <SelectValue placeholder="כל החשבונות הפעילים" />
       </SelectTrigger>
       <SelectContent align="end">
