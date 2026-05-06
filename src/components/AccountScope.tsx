@@ -4,7 +4,6 @@ import {
   ALL_ACCOUNTS,
   ALL_ACCOUNTS_WITH_ARCHIVE,
   accountDisplayName,
-  accountStatusLabel,
   isSelectableActiveAccount,
   type JournalAccount,
 } from "@/lib/accounts";
@@ -22,6 +21,8 @@ const ACCOUNT_COLUMNS = [
   "external_account_id",
   "is_active",
   "is_archived",
+  "is_current_account",
+  "show_in_main_selector",
   "archived_at",
   "failure_reason",
   "final_balance",
@@ -137,8 +138,7 @@ export function useAccountScope() {
 }
 
 export function AccountSelector() {
-  const { activeAccounts, accounts, selectedAccountId, setSelectedAccountId, loadingAccounts } = useAccountScope();
-  const archivedAccounts = accounts.filter((account) => !isSelectableActiveAccount(account));
+  const { activeAccounts, selectedAccountId, setSelectedAccountId, loadingAccounts } = useAccountScope();
 
   return (
     <Select value={selectedAccountId} onValueChange={setSelectedAccountId} disabled={loadingAccounts}>
@@ -146,16 +146,10 @@ export function AccountSelector() {
         <SelectValue placeholder="כל החשבונות הפעילים" />
       </SelectTrigger>
       <SelectContent align="end">
-        <SelectItem value={ALL_ACCOUNTS}>כל החשבונות הפעילים</SelectItem>
-        <SelectItem value={ALL_ACCOUNTS_WITH_ARCHIVE}>כל החשבונות כולל ארכיון</SelectItem>
+        <SelectItem value={ALL_ACCOUNTS}>כל החשבונות הנוכחיים</SelectItem>
         {activeAccounts.map((account) => (
           <SelectItem key={account.id} value={account.id}>
             {accountDisplayName(account)}
-          </SelectItem>
-        ))}
-        {archivedAccounts.map((account) => (
-          <SelectItem key={account.id} value={account.id}>
-            {accountDisplayName(account)} · {accountStatusLabel(account.account_status)}
           </SelectItem>
         ))}
       </SelectContent>

@@ -9,6 +9,8 @@ export type JournalAccount = {
   external_account_id: string | null;
   is_active: boolean | null;
   is_archived: boolean | null;
+  is_current_account: boolean | null;
+  show_in_main_selector: boolean | null;
   archived_at: string | null;
   failure_reason: string | null;
   final_balance: number | null;
@@ -32,14 +34,14 @@ export type JournalAccount = {
 };
 
 export const ALL_ACCOUNTS = "all-active";
-export const ALL_ACCOUNTS_WITH_ARCHIVE = "all-with-archive";
+export const ALL_ACCOUNTS_WITH_ARCHIVE = "all-history";
 
 export const ACCOUNT_TYPES = ["Combine", "XFA", "Live", "Funded", "Other"] as const;
 export const ACCOUNT_STATUSES = ["active", "not_tradable", "locked_out", "failed", "archived", "unknown"] as const;
 export const CYCLE_STATUSES = ["active", "reset", "failed", "archived", "unknown"] as const;
 
 export function accountDisplayName(account: Pick<JournalAccount, "account_name" | "name" | "external_account_id"> | null | undefined) {
-  if (!account) return "כל החשבונות הפעילים";
+  if (!account) return "כל החשבונות הנוכחיים";
   const display = account.account_name?.trim() || account.name?.trim();
   if (display) return display;
   return maskAccountId(account.external_account_id);
@@ -57,12 +59,7 @@ export function isArchivedOrFailed(account: Pick<JournalAccount, "account_status
 }
 
 export function isSelectableActiveAccount(account: JournalAccount) {
-  return !isArchivedOrFailed(account) &&
-    account.account_status === "active" &&
-    account.cycle_status !== "reset" &&
-    account.cycle_status !== "archived" &&
-    account.cycle_status !== "failed" &&
-    account.is_active !== false;
+  return account.show_in_main_selector === true && account.is_current_account === true;
 }
 
 export function selectedAccountFilter<T extends { account_id?: string | null }>(

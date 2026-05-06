@@ -35,6 +35,7 @@ type TradeMetric = {
 function AccountsPage() {
   const { accounts, reloadAccounts } = useAccountScope();
   const [trades, setTrades] = useState<TradeMetric[]>([]);
+  const [showOldAccounts, setShowOldAccounts] = useState(false);
 
   useEffect(() => {
     void loadTrades();
@@ -49,14 +50,25 @@ function AccountsPage() {
   }
 
   const metricsByAccount = useMemo(() => buildAccountMetrics(accounts, trades), [accounts, trades]);
+  const currentAccounts = accounts.filter((account) => account.show_in_main_selector === true && account.is_current_account === true);
+  const oldAccounts = accounts.filter((account) => !(account.show_in_main_selector === true && account.is_current_account === true));
+  const visibleAccounts = showOldAccounts ? accounts : currentAccounts;
 
   return (
     <div className="space-y-4 pb-4">
       <div>
         <h1 className="text-xl font-bold">חשבונות</h1>
         <p className="mt-1 text-xs text-muted-foreground">
-          חשבונות שנכשלו או הועברו לארכיון נשמרים להיסטוריה, אבל לא נכנסים לברירת המחדל של “כל החשבונות הפעילים”.
+          החשבונות הנוכחיים מופיעים באפליקציה הראשית. חשבונות ישנים נשמרים להיסטוריה ולא משפיעים על הסטטיסטיקות היומיות.
         </p>
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border border-border bg-card/60 p-3">
+        <div>
+          <div className="text-sm font-semibold">הצג חשבונות ישנים</div>
+          <div className="text-xs text-muted-foreground">{oldAccounts.length} חשבונות שמורים בהיסטוריה</div>
+        </div>
+        <Switch checked={showOldAccounts} onCheckedChange={setShowOldAccounts} />
       </div>
 
       {accounts.length === 0 ? (
@@ -65,7 +77,7 @@ function AccountsPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {accounts.map((account) => (
+          {visibleAccounts.map((account) => (
             <AccountCard
               key={account.id}
               account={account}
@@ -76,6 +88,11 @@ function AccountsPage() {
               }}
             />
           ))}
+          {!showOldAccounts && oldAccounts.length > 0 && (
+            <Card className="gradient-card p-4 text-center text-xs text-muted-foreground">
+              {oldAccounts.length} חשבונות ישנים מוסתרים. הפעל “הצג חשבונות ישנים” כדי לראות אותם.
+            </Card>
+          )}
         </div>
       )}
     </div>
@@ -98,6 +115,7 @@ function AccountCard({
   const [dailyLossLimit, setDailyLossLimit] = useState(String(account.daily_loss_limit ?? 350));
   const [failureReason, setFailureReason] = useState(account.failure_reason ?? "");
   const [isArchived, setIsArchived] = useState(account.is_archived === true || account.account_status === "archived");
+  const [isCurrent, setIsCurrent] = useState(account.is_current_account === true && account.show_in_main_selector === true);
   const [saving, setSaving] = useState(false);
 
   const failureSuspicion = suspectedFailure(account);
@@ -107,6 +125,7 @@ function AccountCard({
     const limit = Number(dailyLossLimit);
     const nextStatus = isArchived ? "archived" : status;
     const nextCycleStatus = isArchived ? "archived" : cycleStatus;
+    const showInMainSelector = isCurrent && !isArchived;
     const { error } = await supabase
       .from("accounts")
       .update({
@@ -116,6 +135,8 @@ function AccountCard({
         daily_loss_limit: Number.isFinite(limit) && limit > 0 ? limit : 350,
         account_status: nextStatus,
         cycle_status: nextCycleStatus,
+        is_current_account: showInMainSelector,
+        show_in_main_selector: showInMainSelector,
         is_archived: isArchived,
         archived_at: isArchived ? (account.archived_at ?? new Date().toISOString()) : null,
         ended_at: nextCycleStatus === "active" ? null : (account.ended_at ?? new Date().toISOString()),
@@ -144,6 +165,7 @@ function AccountCard({
             <h2 className="font-bold">{accountDisplayName(account)}</h2>
             <Badge variant="outline">{accountStatusLabel(account.account_status)}</Badge>
             <Badge variant="outline">ניסיון {account.cycle_number ?? 1} · {cycleStatusLabel(account.cycle_status)}</Badge>
+            {account.show_in_main_selector && <Badge className="bg-emerald-500/15 text-emerald-300">מוצג באפליקציה</Badge>}
             {account.is_archived && <Badge variant="secondary">בארכיון</Badge>}
             {failureSuspicion && <Badge className="bg-amber-500/15 text-amber-300">חשד לפסילה לפי יתרה</Badge>}
           </div>
@@ -160,6 +182,7 @@ function AccountCard({
         <MiniStat label="canTrade" value={yesNo(account.last_api_can_trade)} />
         <MiniStat label="isVisible" value={yesNo(account.last_api_is_visible)} />
         <MiniStat label="מחזור" value={`ניסיון ${account.cycle_number ?? 1}`} />
+        <MiniStat label="באפליקציה" value={account.show_in_main_selector ? "כן" : "לא"} />
         {account.final_balance != null && <MiniStat label="יתרה סופית" value={fmtMoney(account.final_balance)} />}
         {account.max_loss_limit != null && <MiniStat label="Max Loss" value={fmtMoney(account.max_loss_limit)} />}
         <MiniStat label="P&L היום" value={fmtMoney(metrics.todayPnl)} pnl={metrics.todayPnl} />
@@ -206,6 +229,15 @@ function AccountCard({
           <Label className="text-xs text-muted-foreground">העבר לארכיון</Label>
           <Switch checked={isArchived} onCheckedChange={setIsArchived} />
         </div>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Button type="button" variant={isCurrent ? "secondary" : "outline"} onClick={() => { setIsCurrent(true); setIsArchived(false); }}>
+          הפוך לחשבון נוכחי
+        </Button>
+        <Button type="button" variant="outline" onClick={() => { setIsCurrent(false); setIsArchived(true); setStatus("archived"); setCycleStatus("archived"); }}>
+          העבר להיסטוריה
+        </Button>
       </div>
 
       <Button type="button" onClick={save} disabled={saving} className="w-full">

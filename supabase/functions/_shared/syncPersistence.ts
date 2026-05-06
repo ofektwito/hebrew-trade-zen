@@ -80,7 +80,7 @@ export async function upsertProjectXAccounts(
     const externalAccountId = String(account.id);
     const { data: existing, error: selectError } = await supabase
       .from("accounts")
-      .select("id, commission_per_contract, account_status, is_archived, cycle_status, account_group_id, cycle_number, starting_balance, last_api_balance")
+      .select("id, commission_per_contract, account_status, is_archived, cycle_status, account_group_id, cycle_number, starting_balance, last_api_balance, is_current_account, show_in_main_selector")
       .eq("external_source", "projectx")
       .eq("external_account_id", externalAccountId)
       .maybeSingle();
@@ -153,6 +153,8 @@ type ExistingAccountRow = {
   cycle_number: number | null;
   starting_balance: number | null;
   last_api_balance: number | null;
+  is_current_account: boolean | null;
+  show_in_main_selector: boolean | null;
 };
 
 async function insertProjectXAccountCycle(
@@ -176,6 +178,8 @@ async function insertProjectXAccountCycle(
       starting_balance: inferStartingBalance(account),
       started_at: new Date().toISOString(),
       is_active: true,
+      is_current_account: previousCycle?.is_current_account === true && previousCycle?.show_in_main_selector === true,
+      show_in_main_selector: previousCycle?.is_current_account === true && previousCycle?.show_in_main_selector === true,
       is_archived: false,
     })
     .select("id")

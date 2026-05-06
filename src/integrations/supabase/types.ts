@@ -40,6 +40,7 @@ export type Database = {
           final_pnl: number | null
           is_active: boolean | null
           is_archived: boolean | null
+          is_current_account: boolean | null
           last_api_balance: number | null
           last_api_can_trade: boolean | null
           last_api_is_visible: boolean | null
@@ -49,6 +50,7 @@ export type Database = {
           name: string
           reset_at: string | null
           reset_reason: string | null
+          show_in_main_selector: boolean | null
           starting_balance: number | null
           started_at: string | null
           sync_error: string | null
@@ -82,6 +84,7 @@ export type Database = {
           final_pnl?: number | null
           is_active?: boolean | null
           is_archived?: boolean | null
+          is_current_account?: boolean | null
           last_api_balance?: number | null
           last_api_can_trade?: boolean | null
           last_api_is_visible?: boolean | null
@@ -91,6 +94,7 @@ export type Database = {
           name: string
           reset_at?: string | null
           reset_reason?: string | null
+          show_in_main_selector?: boolean | null
           starting_balance?: number | null
           started_at?: string | null
           sync_error?: string | null
@@ -124,6 +128,7 @@ export type Database = {
           final_pnl?: number | null
           is_active?: boolean | null
           is_archived?: boolean | null
+          is_current_account?: boolean | null
           last_api_balance?: number | null
           last_api_can_trade?: boolean | null
           last_api_is_visible?: boolean | null
@@ -133,6 +138,7 @@ export type Database = {
           name?: string
           reset_at?: string | null
           reset_reason?: string | null
+          show_in_main_selector?: boolean | null
           starting_balance?: number | null
           started_at?: string | null
           sync_error?: string | null
