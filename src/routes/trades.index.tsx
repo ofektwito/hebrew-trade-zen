@@ -15,7 +15,6 @@ import {
 import { FOLLOWED_PLAN, INSTRUMENTS, MISTAKE_TYPES, SETUP_TYPES, formatDisplayDate, formatDisplayTime, fmtMoney, fmtPoints, pnlClass } from "@/lib/trade-utils";
 import { Camera, FileText, Search, SlidersHorizontal } from "lucide-react";
 import { useAccountScope } from "@/components/AccountScope";
-import { ALL_ACCOUNTS } from "@/lib/accounts";
 
 export const Route = createFileRoute("/trades/")({
   component: TradesPage,
@@ -62,7 +61,7 @@ type Filters = {
 };
 
 function TradesPage() {
-  const { selectedAccountId, isAllAccounts, labelForAccount } = useAccountScope();
+  const { selectedAccountId, isAllAccounts, labelForAccount, scopedAccountIds, includeArchivedAccounts } = useAccountScope();
   const [trades, setTrades] = useState<TradeRow[]>([]);
   const [screenshotTradeIds, setScreenshotTradeIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -88,7 +87,15 @@ function TradesPage() {
           .order("trade_date", { ascending: false })
           .order("entry_time", { ascending: false });
 
-      if (selectedAccountId !== ALL_ACCOUNTS) tradeQuery = tradeQuery.eq("account_id", selectedAccountId);
+      if (scopedAccountIds !== null) {
+        if (scopedAccountIds.length === 0) {
+          setTrades([]);
+          setScreenshotTradeIds(new Set());
+          setLoading(false);
+          return;
+        }
+        tradeQuery = tradeQuery.in("account_id", scopedAccountIds);
+      }
 
       const [{ data: tradeRows }, { data: screenshotRows }] = await Promise.all([
         tradeQuery,
@@ -99,7 +106,7 @@ function TradesPage() {
       setScreenshotTradeIds(new Set((screenshotRows ?? []).map((shot) => shot.trade_id).filter(Boolean)));
       setLoading(false);
     })();
-  }, [selectedAccountId]);
+  }, [selectedAccountId, scopedAccountIds]);
 
   const filteredTrades = useMemo(
     () => trades.filter((trade) => matchesFilters(trade, filters, screenshotTradeIds)),
@@ -119,7 +126,7 @@ function TradesPage() {
         <div>
           <h1 className="text-xl font-bold">עסקאות</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            {isAllAccounts ? "כל החשבונות" : labelForAccount(selectedAccountId)} · כל הטריידים המסונכרנים מ-ProjectX מוצגים כטרייד יומן אחד לכל lifecycle של פוזיציה.
+            {isAllAccounts ? (includeArchivedAccounts ? "כל החשבונות כולל ארכיון" : "כל החשבונות הפעילים") : labelForAccount(selectedAccountId)} · כל הטריידים המסונכרנים מ-ProjectX מוצגים כטרייד יומן אחד לכל lifecycle של פוזיציה.
           </p>
         </div>
         <Badge className="border-primary/30 bg-primary/10 text-primary" variant="outline">

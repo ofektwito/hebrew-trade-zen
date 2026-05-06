@@ -14,7 +14,7 @@ import { todayISO, fmtMoney, pnlClass } from "@/lib/trade-utils";
 import { toast } from "sonner";
 import { ImagePlus, Save } from "lucide-react";
 import { useAccountScope } from "@/components/AccountScope";
-import { ALL_ACCOUNTS, accountDisplayName } from "@/lib/accounts";
+import { accountDisplayName } from "@/lib/accounts";
 
 const searchSchema = z.object({ date: z.string().optional() });
 const MARKET_STATES = ["מגמתי", "מדשדש", "מונע חדשות", "לא ברור"] as const;
@@ -25,7 +25,7 @@ export const Route = createFileRoute("/reviews/new")({
 });
 
 function NewReview() {
-  const { selectedAccountId, selectedAccount, isAllAccounts } = useAccountScope();
+  const { selectedAccountId, selectedAccount, isAllAccounts, scopedAccountIds, includeArchivedAccounts } = useAccountScope();
   const { date } = Route.useSearch();
   const navigate = useNavigate();
   const initial = date ?? todayISO();
@@ -73,7 +73,13 @@ function NewReview() {
   useEffect(() => {
     (async () => {
       let query = supabase.from("trades").select("*").is("superseded_by", null).eq("trade_date", f.review_date);
-      if (selectedAccountId !== ALL_ACCOUNTS) query = query.eq("account_id", selectedAccountId);
+      if (scopedAccountIds !== null) {
+        if (scopedAccountIds.length === 0) {
+          setAutoStats({ count: 0, total: 0, commissions: 0, winRate: 0, best: "", worst: "", catalyst: "" });
+          return;
+        }
+        query = query.in("account_id", scopedAccountIds);
+      }
       const { data: trades } = await query;
       const t = trades ?? [];
       const total = t.reduce((s: number, x: any) => s + (x.net_pnl ?? 0), 0);
@@ -101,7 +107,7 @@ function NewReview() {
         main_catalyst: p.main_catalyst || catalyst,
       }));
     })();
-  }, [f.review_date, selectedAccountId]);
+  }, [f.review_date, selectedAccountId, scopedAccountIds]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -158,7 +164,7 @@ function NewReview() {
       <h1 className="text-xl font-bold">סקירה יומית</h1>
       <Card className="gradient-card p-3 text-sm">
         <span className="text-muted-foreground">טווח סקירה: </span>
-        <span className="font-bold text-primary">{isAllAccounts ? "כל החשבונות" : accountDisplayName(selectedAccount)}</span>
+        <span className="font-bold text-primary">{isAllAccounts ? (includeArchivedAccounts ? "כל החשבונות כולל ארכיון" : "כל החשבונות הפעילים") : accountDisplayName(selectedAccount)}</span>
       </Card>
 
       <Card className="p-3 gradient-card border-primary/30">

@@ -67,21 +67,24 @@ serve(async (req) => {
     let accountIds = readProjectXAccountIds();
     let accountConfigs: AccountConfig[] = [];
     const sampleAccountPayloads: Array<Record<string, unknown>> = [];
+    let activeAccountsCount: number | null = null;
 
     if (accountIds.length === 0) {
-      const accounts = await client.fetchAccounts();
-      if (accounts.length === 0) {
+      const activeAccounts = await client.fetchAccounts(true);
+      activeAccountsCount = activeAccounts.length;
+      const allAccounts = await fetchAllAccountsSafely(client, activeAccounts);
+      if (allAccounts.length === 0) {
         throw new Error("לא נמצאו חשבונות ProjectX פעילים");
       }
-      sampleAccountPayloads.push(...accounts.slice(0, 1) as Array<Record<string, unknown>>);
-      accountIds = accounts.map((account) => String(account.id));
+      sampleAccountPayloads.push(...allAccounts.slice(0, 1) as Array<Record<string, unknown>>);
+      accountIds = allAccounts.map((account) => String(account.id));
       accountConfigs = dryRun
-        ? accounts.map((account) => ({
+        ? allAccounts.map((account) => ({
             account_id: null,
             external_account_id: String(account.id),
             commission_per_contract: 0,
           }))
-        : await upsertProjectXAccounts(supabase, accounts);
+        : await upsertProjectXAccounts(supabase, allAccounts);
     } else {
       accountConfigs = await loadAccountConfigs(supabase, accountIds);
     }
@@ -118,6 +121,7 @@ serve(async (req) => {
         rangeEnd,
         accountsDiscovered: accountIds.map(maskAccountId),
         accountsCount: accountIds.length,
+        activeAccountsCount,
         ordersCount,
         tradeExecutionsCount: allFills.length,
         normalizedTradesCount: normalizedTrades.length,
@@ -207,6 +211,15 @@ function mapProjectXOrders(orders: Record<string, unknown>[], fallbackAccountId:
     rejection_reason: stringOrNull(order.rejectionReason),
     raw_payload: order,
   }));
+}
+
+async function fetchAllAccountsSafely(client: ProjectXClient, activeAccounts: Awaited<ReturnType<ProjectXClient["fetchAccounts"]>>) {
+  try {
+    const allAccounts = await client.fetchAccounts(false);
+    return allAccounts.length > 0 ? allAccounts : activeAccounts;
+  } catch {
+    return activeAccounts;
+  }
 }
 
 function safeErrorMessage(error: unknown) {

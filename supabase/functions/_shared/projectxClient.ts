@@ -10,6 +10,8 @@ export type ProjectXAccount = {
   unrealizedProfitAndLoss?: number | null;
   canTrade?: boolean;
   isVisible?: boolean;
+  status?: string | null;
+  accountType?: string | null;
 };
 
 export type ProjectXOrder = Record<string, unknown>;
@@ -74,9 +76,9 @@ export class ProjectXClient {
     return response.token;
   }
 
-  async fetchAccounts(): Promise<ProjectXAccount[]> {
+  async fetchAccounts(onlyActiveAccounts = true): Promise<ProjectXAccount[]> {
     const response = await this.post<{ accounts?: ProjectXAccount[] }>("/api/Account/search", {
-      onlyActiveAccounts: true,
+      onlyActiveAccounts,
     });
 
     return response.accounts ?? [];

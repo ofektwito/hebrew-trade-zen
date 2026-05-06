@@ -29,7 +29,7 @@ interface Trade {
 }
 
 function Dashboard() {
-  const { accounts, selectedAccountId, selectedAccount, isAllAccounts } = useAccountScope();
+  const { accounts, activeAccounts, selectedAccountId, selectedAccount, isAllAccounts, scopedAccountIds } = useAccountScope();
   const [todayTrades, setTodayTrades] = useState<Trade[]>([]);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
   const [recent, setRecent] = useState<Trade[]>([]);
@@ -41,7 +41,18 @@ function Dashboard() {
       let todayQuery = supabase.from("trades").select("*").is("superseded_by", null).eq("trade_date", today);
       let allQuery = supabase.from("trades").select("*").is("superseded_by", null).order("trade_date", { ascending: false });
       let recentQuery = supabase.from("trades").select("*").is("superseded_by", null).order("trade_date", { ascending: false }).order("created_at", { ascending: false }).limit(8);
-      if (selectedAccountId !== ALL_ACCOUNTS) {
+      if (scopedAccountIds !== null) {
+        if (scopedAccountIds.length === 0) {
+          setTodayTrades([]);
+          setAllTrades([]);
+          setRecent([]);
+          setLoading(false);
+          return;
+        }
+        todayQuery = todayQuery.in("account_id", scopedAccountIds);
+        allQuery = allQuery.in("account_id", scopedAccountIds);
+        recentQuery = recentQuery.in("account_id", scopedAccountIds);
+      } else if (selectedAccountId !== ALL_ACCOUNTS) {
         todayQuery = todayQuery.eq("account_id", selectedAccountId);
         allQuery = allQuery.eq("account_id", selectedAccountId);
         recentQuery = recentQuery.eq("account_id", selectedAccountId);
@@ -56,14 +67,14 @@ function Dashboard() {
       setRecent((recentData ?? []) as Trade[]);
       setLoading(false);
     })();
-  }, [selectedAccountId]);
+  }, [selectedAccountId, scopedAccountIds]);
 
   const todayNet = sumPnl(todayTrades);
   const monthTrades = allTrades.filter((trade) => trade.trade_date?.startsWith(currentMonthISO()));
   const monthNet = sumPnl(monthTrades);
   const journalNet = sumPnl(allTrades);
   const brokerRealizedPnl = isAllAccounts
-    ? sumBrokerPnl(accounts)
+    ? sumBrokerPnl(activeAccounts)
     : selectedAccount?.broker_realized_pnl ?? null;
   const accountNet = brokerRealizedPnl ?? journalNet;
   const reconciliationDiff = brokerRealizedPnl == null ? null : brokerRealizedPnl - journalNet;
@@ -80,8 +91,9 @@ function Dashboard() {
     : 0;
   const dailyLossLimit = Number(selectedAccount?.daily_loss_limit ?? 350);
   const dailyLossUsed = todayNet < 0 && dailyLossLimit > 0 ? Math.min(100, Math.abs(todayNet) / dailyLossLimit * 100) : 0;
-  const accountBreakdown = useMemo(() => buildAccountBreakdown(accounts, allTrades), [accounts, allTrades]);
-  const accountDailyLossRows = useMemo(() => buildAccountDailyLossRows(accounts, todayTrades), [accounts, todayTrades]);
+  const visibleAccounts = selectedAccountId === ALL_ACCOUNTS ? activeAccounts : accounts;
+  const accountBreakdown = useMemo(() => buildAccountBreakdown(visibleAccounts, allTrades), [visibleAccounts, allTrades]);
+  const accountDailyLossRows = useMemo(() => buildAccountDailyLossRows(visibleAccounts, todayTrades), [visibleAccounts, todayTrades]);
 
   const status = accountNet > 0 ? "green" : accountNet < 0 ? "red" : "even";
 

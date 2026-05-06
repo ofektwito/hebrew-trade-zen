@@ -9,7 +9,7 @@ import { fmtMoney, fmtPoints, pnlClass, buildDailyReviewChatGPT, formatDisplayTi
 import { toast } from "sonner";
 import { Copy, Trash2, ArrowLeft } from "lucide-react";
 import { useAccountScope } from "@/components/AccountScope";
-import { ALL_ACCOUNTS, accountDisplayName } from "@/lib/accounts";
+import { accountDisplayName } from "@/lib/accounts";
 
 export const Route = createFileRoute("/reviews/$reviewId")({
   component: ReviewDetails,
@@ -24,7 +24,7 @@ const dailyReviewScreenshotTypes = [
 
 function ReviewDetails() {
   const { reviewId } = Route.useParams();
-  const { selectedAccountId, selectedAccount, isAllAccounts, accounts, labelForAccount } = useAccountScope();
+  const { selectedAccountId, selectedAccount, isAllAccounts, accounts, activeAccounts, labelForAccount, scopedAccountIds, includeArchivedAccounts } = useAccountScope();
   const navigate = useNavigate();
   const [review, setReview] = useState<any>(null);
   const [trades, setTrades] = useState<any[]>([]);
@@ -34,7 +34,7 @@ function ReviewDetails() {
 
   useEffect(() => {
     void loadReview();
-  }, [reviewId, selectedAccountId]);
+  }, [reviewId, selectedAccountId, scopedAccountIds]);
 
   async function loadReview() {
     setLoading(true);
@@ -42,7 +42,16 @@ function ReviewDetails() {
     setReview(r);
     if (r) {
       let tradeQuery = supabase.from("trades").select("*").is("superseded_by", null).eq("trade_date", r.review_date).order("entry_time", { ascending: true });
-      if (selectedAccountId !== ALL_ACCOUNTS) tradeQuery = tradeQuery.eq("account_id", selectedAccountId);
+      if (scopedAccountIds !== null) {
+        if (scopedAccountIds.length === 0) {
+          setTrades([]);
+          setReviewScreenshots([]);
+          setTradeScreenshots([]);
+          setLoading(false);
+          return;
+        }
+        tradeQuery = tradeQuery.in("account_id", scopedAccountIds);
+      }
       const [{ data: t }, { data: reviewShots }] = await Promise.all([
         tradeQuery,
         supabase.from("screenshots").select("*").eq("review_id", reviewId).order("created_at", { ascending: true }),
@@ -72,8 +81,8 @@ function ReviewDetails() {
     await navigator.clipboard.writeText(buildDailyReviewChatGPT(review, trades, {
       reviewScreenshots,
       tradeScreenshots,
-      accountScope: isAllAccounts ? "כל החשבונות" : accountDisplayName(selectedAccount),
-      accountBreakdown: buildReviewAccountBreakdown(trades, accounts),
+      accountScope: isAllAccounts ? (includeArchivedAccounts ? "כל החשבונות כולל ארכיון" : "כל החשבונות הפעילים") : accountDisplayName(selectedAccount),
+      accountBreakdown: buildReviewAccountBreakdown(trades, selectedAccountId === "all-active" ? activeAccounts : accounts),
     } as any));
     toast.success("הועתק ל-Clipboard");
   }
@@ -94,6 +103,8 @@ function ReviewDetails() {
   const stats = getDayStats(trades);
   const totalNet = isAllAccounts ? (review.total_pnl ?? stats.totalNet) : stats.totalNet;
   const profit = totalNet > 0;
+  const accountScopeLabel = isAllAccounts ? (includeArchivedAccounts ? "כל החשבונות כולל ארכיון" : "כל החשבונות הפעילים") : labelForAccount(selectedAccountId);
+  const visibleAccounts = selectedAccountId === "all-active" ? activeAccounts : accounts;
 
   return (
     <div className="space-y-4">
@@ -106,7 +117,7 @@ function ReviewDetails() {
 
       <Card className="gradient-card p-3 text-sm">
         <span className="text-muted-foreground">טווח סקירה: </span>
-        <span className="font-bold text-primary">{isAllAccounts ? "כל החשבונות" : labelForAccount(selectedAccountId)}</span>
+        <span className="font-bold text-primary">{accountScopeLabel}</span>
       </Card>
 
       <Card className={`p-5 border-0 shadow-card ${profit ? "gradient-profit glow-profit" : "gradient-loss glow-loss"}`}>
@@ -128,7 +139,7 @@ function ReviewDetails() {
       <Card className="p-4 gradient-card space-y-2">
         <h3 className="text-sm font-bold text-primary">סיכום היום</h3>
         <Row k="תאריך" v={review.review_date} />
-        <Row k="חשבון" v={isAllAccounts ? "כל החשבונות" : labelForAccount(selectedAccountId)} />
+        <Row k="חשבון" v={accountScopeLabel} />
         <Row k="Net P&L" v={fmtMoney(totalNet)} cls={pnlClass(totalNet)} />
         <Row k="Gross P&L" v={fmtMoney(stats.totalGross)} cls={pnlClass(stats.totalGross)} />
         <Row k="עמלות" v={fmtMoney(stats.totalCommissions)} />
@@ -146,7 +157,7 @@ function ReviewDetails() {
       {isAllAccounts && (
         <Card className="p-4 gradient-card space-y-2">
           <h3 className="text-sm font-bold text-primary">פירוט לפי חשבון</h3>
-          {buildReviewAccountBreakdown(trades, accounts).map((row) => (
+          {buildReviewAccountBreakdown(trades, visibleAccounts).map((row) => (
             <Row key={row.accountName} k={`${row.accountName} · ${row.tradeCount} טריידים`} v={fmtMoney(row.netPnl)} cls={pnlClass(row.netPnl)} />
           ))}
         </Card>

@@ -17,7 +17,10 @@ export type Database = {
       accounts: {
         Row: {
           account_name: string | null
+          account_status: string | null
           account_type: string | null
+          account_group_id: string | null
+          archived_at: string | null
           broker: string | null
           broker_balance: number | null
           broker_pnl_updated_at: string | null
@@ -25,23 +28,41 @@ export type Database = {
           broker_unrealized_pnl: number | null
           commission_per_contract: number | null
           created_at: string
+          cycle_number: number | null
+          cycle_status: string | null
           daily_loss_limit: number | null
+          ended_at: string | null
           external_account_id: string | null
           external_source: string | null
           id: string
+          failure_reason: string | null
+          final_balance: number | null
+          final_pnl: number | null
           is_active: boolean | null
+          is_archived: boolean | null
+          last_api_balance: number | null
+          last_api_can_trade: boolean | null
+          last_api_is_visible: boolean | null
+          last_api_status_raw: Json | null
           last_synced_at: string | null
           max_loss_limit: number | null
           name: string
+          reset_at: string | null
+          reset_reason: string | null
           starting_balance: number | null
+          started_at: string | null
           sync_error: string | null
           sync_status: string | null
           updated_at: string
+          user_account_type: string | null
           user_id: string | null
         }
         Insert: {
           account_name?: string | null
+          account_status?: string | null
           account_type?: string | null
+          account_group_id?: string | null
+          archived_at?: string | null
           broker?: string | null
           broker_balance?: number | null
           broker_pnl_updated_at?: string | null
@@ -49,23 +70,41 @@ export type Database = {
           broker_unrealized_pnl?: number | null
           commission_per_contract?: number | null
           created_at?: string
+          cycle_number?: number | null
+          cycle_status?: string | null
           daily_loss_limit?: number | null
+          ended_at?: string | null
           external_account_id?: string | null
           external_source?: string | null
           id?: string
+          failure_reason?: string | null
+          final_balance?: number | null
+          final_pnl?: number | null
           is_active?: boolean | null
+          is_archived?: boolean | null
+          last_api_balance?: number | null
+          last_api_can_trade?: boolean | null
+          last_api_is_visible?: boolean | null
+          last_api_status_raw?: Json | null
           last_synced_at?: string | null
           max_loss_limit?: number | null
           name: string
+          reset_at?: string | null
+          reset_reason?: string | null
           starting_balance?: number | null
+          started_at?: string | null
           sync_error?: string | null
           sync_status?: string | null
           updated_at?: string
+          user_account_type?: string | null
           user_id?: string | null
         }
         Update: {
           account_name?: string | null
+          account_status?: string | null
           account_type?: string | null
+          account_group_id?: string | null
+          archived_at?: string | null
           broker?: string | null
           broker_balance?: number | null
           broker_pnl_updated_at?: string | null
@@ -73,18 +112,33 @@ export type Database = {
           broker_unrealized_pnl?: number | null
           commission_per_contract?: number | null
           created_at?: string
+          cycle_number?: number | null
+          cycle_status?: string | null
           daily_loss_limit?: number | null
+          ended_at?: string | null
           external_account_id?: string | null
           external_source?: string | null
           id?: string
+          failure_reason?: string | null
+          final_balance?: number | null
+          final_pnl?: number | null
           is_active?: boolean | null
+          is_archived?: boolean | null
+          last_api_balance?: number | null
+          last_api_can_trade?: boolean | null
+          last_api_is_visible?: boolean | null
+          last_api_status_raw?: Json | null
           last_synced_at?: string | null
           max_loss_limit?: number | null
           name?: string
+          reset_at?: string | null
+          reset_reason?: string | null
           starting_balance?: number | null
+          started_at?: string | null
           sync_error?: string | null
           sync_status?: string | null
           updated_at?: string
+          user_account_type?: string | null
           user_id?: string | null
         }
         Relationships: []

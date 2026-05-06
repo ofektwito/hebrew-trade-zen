@@ -1,14 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
+import { Switch } from "@/components/ui/switch";
 import { useAccountScope } from "@/components/AccountScope";
-import { ACCOUNT_TYPES, accountDisplayName, accountTypeLabel, maskAccountId, type JournalAccount } from "@/lib/accounts";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  ACCOUNT_STATUSES,
+  ACCOUNT_TYPES,
+  accountDisplayName,
+  accountStatusLabel,
+  accountTypeLabel,
+  cycleStatusLabel,
+  maskAccountId,
+  type JournalAccount,
+} from "@/lib/accounts";
 import { fmtMoney, pnlClass, todayISO } from "@/lib/trade-utils";
 
 export const Route = createFileRoute("/accounts")({
@@ -44,7 +55,7 @@ function AccountsPage() {
       <div>
         <h1 className="text-xl font-bold">חשבונות</h1>
         <p className="mt-1 text-xs text-muted-foreground">
-          ProjectX מסנכרן מזהים וטריידים. כאן מנהלים רק שם תצוגה, סוג חשבון ומגבלת הפסד יומית.
+          חשבונות שנכשלו או הועברו לארכיון נשמרים להיסטוריה, אבל לא נכנסים לברירת המחדל של “כל החשבונות הפעילים”.
         </p>
       </div>
 
@@ -81,19 +92,37 @@ function AccountCard({
   onSaved: () => Promise<void>;
 }) {
   const [name, setName] = useState(account.account_name ?? "");
-  const [type, setType] = useState(account.account_type ?? "Other");
+  const [type, setType] = useState(account.user_account_type ?? account.account_type ?? "Other");
+  const [status, setStatus] = useState(account.account_status ?? "active");
+  const [cycleStatus, setCycleStatus] = useState(account.cycle_status ?? "active");
   const [dailyLossLimit, setDailyLossLimit] = useState(String(account.daily_loss_limit ?? 350));
+  const [failureReason, setFailureReason] = useState(account.failure_reason ?? "");
+  const [isArchived, setIsArchived] = useState(account.is_archived === true || account.account_status === "archived");
   const [saving, setSaving] = useState(false);
+
+  const failureSuspicion = suspectedFailure(account);
 
   async function save() {
     setSaving(true);
     const limit = Number(dailyLossLimit);
+    const nextStatus = isArchived ? "archived" : status;
+    const nextCycleStatus = isArchived ? "archived" : cycleStatus;
     const { error } = await supabase
       .from("accounts")
       .update({
         account_name: name.trim() || null,
         account_type: type,
+        user_account_type: type,
         daily_loss_limit: Number.isFinite(limit) && limit > 0 ? limit : 350,
+        account_status: nextStatus,
+        cycle_status: nextCycleStatus,
+        is_archived: isArchived,
+        archived_at: isArchived ? (account.archived_at ?? new Date().toISOString()) : null,
+        ended_at: nextCycleStatus === "active" ? null : (account.ended_at ?? new Date().toISOString()),
+        failure_reason: failureReason.trim() || null,
+        reset_reason: nextCycleStatus === "reset" ? (failureReason.trim() || "Reset manually") : account.reset_reason,
+        final_balance: nextStatus === "failed" || nextCycleStatus === "failed" || isArchived ? (account.last_api_balance ?? account.broker_balance ?? metrics.totalPnl) : null,
+        final_pnl: nextStatus === "failed" || nextCycleStatus === "failed" || isArchived ? metrics.totalPnl : null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", account.id);
@@ -111,23 +140,32 @@ function AccountCard({
     <Card className="gradient-card space-y-4 p-4 shadow-card">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-bold">{accountDisplayName(account)}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-bold">{accountDisplayName(account)}</h2>
+            <Badge variant="outline">{accountStatusLabel(account.account_status)}</Badge>
+            <Badge variant="outline">ניסיון {account.cycle_number ?? 1} · {cycleStatusLabel(account.cycle_status)}</Badge>
+            {account.is_archived && <Badge variant="secondary">בארכיון</Badge>}
+            {failureSuspicion && <Badge className="bg-amber-500/15 text-amber-300">חשד לפסילה לפי יתרה</Badge>}
+          </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            {maskAccountId(account.external_account_id)} · {accountTypeLabel(account.account_type)} · {account.is_active === false ? "לא פעיל" : "פעיל"}
+            {maskAccountId(account.external_account_id)} · {accountTypeLabel(account.user_account_type ?? account.account_type)}
           </p>
         </div>
         <div className={`text-left text-lg font-bold ${pnlClass(metrics.totalPnl)}`}>{fmtMoney(metrics.totalPnl)}</div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs">
-        {account.broker_balance != null && <MiniStat label="Broker BAL" value={fmtMoney(account.broker_balance)} />}
+        {account.last_api_balance != null && <MiniStat label="ProjectX Balance" value={fmtMoney(account.last_api_balance)} />}
         {account.broker_realized_pnl != null && <MiniStat label="Broker RP&L" value={fmtMoney(account.broker_realized_pnl)} pnl={account.broker_realized_pnl} />}
-        {account.broker_realized_pnl != null && <MiniStat label="הפרש Broker-יומן" value={fmtMoney(account.broker_realized_pnl - metrics.totalPnl)} pnl={account.broker_realized_pnl - metrics.totalPnl} />}
+        <MiniStat label="canTrade" value={yesNo(account.last_api_can_trade)} />
+        <MiniStat label="isVisible" value={yesNo(account.last_api_is_visible)} />
+        <MiniStat label="מחזור" value={`ניסיון ${account.cycle_number ?? 1}`} />
+        {account.final_balance != null && <MiniStat label="יתרה סופית" value={fmtMoney(account.final_balance)} />}
+        {account.max_loss_limit != null && <MiniStat label="Max Loss" value={fmtMoney(account.max_loss_limit)} />}
         <MiniStat label="P&L היום" value={fmtMoney(metrics.todayPnl)} pnl={metrics.todayPnl} />
         <MiniStat label="P&L חודשי" value={fmtMoney(metrics.monthPnl)} pnl={metrics.monthPnl} />
         <MiniStat label="P&L לפי יומן" value={fmtMoney(metrics.totalPnl)} pnl={metrics.totalPnl} />
         <MiniStat label="טריידים" value={String(metrics.tradeCount)} />
-        <MiniStat label="סטופ יומי" value={`-${fmtMoney(Number(dailyLossLimit || 350))}`} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -142,9 +180,32 @@ function AccountCard({
             </SelectContent>
           </Select>
         </Field>
+        <Field label="סטטוס">
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {ACCOUNT_STATUSES.map((option) => <SelectItem key={option} value={option}>{accountStatusLabel(option)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="סטטוס ניסיון">
+          <Select value={cycleStatus} onValueChange={setCycleStatus}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {["active", "reset", "failed", "archived", "unknown"].map((option) => <SelectItem key={option} value={option}>{cycleStatusLabel(option)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
         <Field label="מגבלת הפסד יומית">
           <Input type="number" min={1} step="1" value={dailyLossLimit} onChange={(event) => setDailyLossLimit(event.target.value)} />
         </Field>
+        <Field label="סיבת פסילה / הערה">
+          <Input value={failureReason} onChange={(event) => setFailureReason(event.target.value)} placeholder="אופציונלי" />
+        </Field>
+        <div className="flex items-end justify-between rounded-md bg-input/30 p-3">
+          <Label className="text-xs text-muted-foreground">העבר לארכיון</Label>
+          <Switch checked={isArchived} onCheckedChange={setIsArchived} />
+        </div>
       </div>
 
       <Button type="button" onClick={save} disabled={saving} className="w-full">
@@ -183,6 +244,17 @@ function buildAccountMetrics(accounts: JournalAccount[], trades: TradeMetric[]) 
     map.set(trade.account_id, metrics);
   }
   return map;
+}
+
+function suspectedFailure(account: JournalAccount) {
+  if (account.starting_balance == null || account.max_loss_limit == null || account.last_api_balance == null) return false;
+  return account.last_api_balance <= account.starting_balance - account.max_loss_limit;
+}
+
+function yesNo(value: boolean | null) {
+  if (value === true) return "כן";
+  if (value === false) return "לא";
+  return "לא ידוע";
 }
 
 function emptyMetrics() {

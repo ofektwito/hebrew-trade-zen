@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { fmtMoney, pnlClass } from "@/lib/trade-utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useAccountScope } from "@/components/AccountScope";
-import { ALL_ACCOUNTS, accountDisplayName, type JournalAccount } from "@/lib/accounts";
+import { accountDisplayName, type JournalAccount } from "@/lib/accounts";
 
 export const Route = createFileRoute("/calendar")({
   component: CalendarPage,
@@ -55,7 +55,7 @@ interface DayStats {
 }
 
 function CalendarPage() {
-  const { selectedAccountId, selectedAccount, isAllAccounts, accounts } = useAccountScope();
+  const { selectedAccountId, selectedAccount, isAllAccounts, accounts, activeAccounts, scopedAccountIds, includeArchivedAccounts } = useAccountScope();
   const navigate = useNavigate();
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -76,7 +76,15 @@ function CalendarPage() {
           .gte("trade_date", monthStart)
           .lte("trade_date", monthEnd)
           .order("trade_date", { ascending: true });
-      if (selectedAccountId !== ALL_ACCOUNTS) tradeQuery = tradeQuery.eq("account_id", selectedAccountId);
+      if (scopedAccountIds !== null) {
+        if (scopedAccountIds.length === 0) {
+          setTrades([]);
+          setReviews([]);
+          setLoading(false);
+          return;
+        }
+        tradeQuery = tradeQuery.in("account_id", scopedAccountIds);
+      }
 
       const [{ data: tradeRows }, { data: reviewRows }] = await Promise.all([
         tradeQuery,
@@ -92,11 +100,12 @@ function CalendarPage() {
       setDailyLossLimit(Number(selectedAccount?.daily_loss_limit ?? DEFAULT_DAILY_LOSS_LIMIT));
       setLoading(false);
     })();
-  }, [monthStart, monthEnd, selectedAccountId, selectedAccount?.daily_loss_limit]);
+  }, [monthStart, monthEnd, selectedAccountId, selectedAccount?.daily_loss_limit, scopedAccountIds]);
 
+  const visibleAccounts = selectedAccountId === "all-active" ? activeAccounts : accounts;
   const { days, summary } = useMemo(
-    () => buildCalendar(month, trades, reviews, dailyLossLimit, accounts, isAllAccounts),
-    [month, trades, reviews, dailyLossLimit, accounts, isAllAccounts],
+    () => buildCalendar(month, trades, reviews, dailyLossLimit, visibleAccounts, isAllAccounts),
+    [month, trades, reviews, dailyLossLimit, visibleAccounts, isAllAccounts],
   );
 
   function goMonth(delta: number) {

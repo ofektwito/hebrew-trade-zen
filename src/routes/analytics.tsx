@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { fmtMoney, isRuleViolation, pnlClass } from "@/lib/trade-utils";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, Cell, CartesianGrid } from "recharts";
 import { useAccountScope } from "@/components/AccountScope";
-import { ALL_ACCOUNTS, accountDisplayName } from "@/lib/accounts";
+import { accountDisplayName } from "@/lib/accounts";
 
 export const Route = createFileRoute("/analytics")({
   component: Analytics,
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/analytics")({
 const DAILY_LOSS_LIMIT = 1000;
 
 function Analytics() {
-  const { accounts, selectedAccountId, selectedAccount, isAllAccounts, labelForAccount } = useAccountScope();
+  const { accounts, activeAccounts, selectedAccountId, selectedAccount, isAllAccounts, labelForAccount, scopedAccountIds, includeArchivedAccounts } = useAccountScope();
   const [trades, setTrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -25,14 +25,22 @@ function Analytics() {
         .select("*")
         .is("superseded_by", null)
         .order("trade_date", { ascending: true });
-      if (selectedAccountId !== ALL_ACCOUNTS) query = query.eq("account_id", selectedAccountId);
+      if (scopedAccountIds !== null) {
+        if (scopedAccountIds.length === 0) {
+          setTrades([]);
+          setLoading(false);
+          return;
+        }
+        query = query.in("account_id", scopedAccountIds);
+      }
       const { data } = await query;
       setTrades(data ?? []);
       setLoading(false);
     })();
-  }, [selectedAccountId]);
+  }, [selectedAccountId, scopedAccountIds]);
 
-  const stats = useMemo(() => computeStats(trades, accounts, isAllAccounts, selectedAccount?.daily_loss_limit), [trades, accounts, isAllAccounts, selectedAccount?.daily_loss_limit]);
+  const visibleAccounts = selectedAccountId === "all-active" ? activeAccounts : accounts;
+  const stats = useMemo(() => computeStats(trades, visibleAccounts, isAllAccounts, selectedAccount?.daily_loss_limit), [trades, visibleAccounts, isAllAccounts, selectedAccount?.daily_loss_limit]);
 
   if (loading) return <div className="text-center text-muted-foreground py-8">טוען ניתוח...</div>;
   if (trades.length === 0) return <Card className="p-8 text-center gradient-card text-muted-foreground">עדיין אין עסקאות לניתוח</Card>;
@@ -41,7 +49,7 @@ function Analytics() {
     <div className="space-y-4 pb-4">
       <div>
         <h1 className="text-xl font-bold">ניתוח ביצועים</h1>
-        <p className="mt-1 text-xs text-muted-foreground">{isAllAccounts ? "כל החשבונות" : labelForAccount(selectedAccountId)}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{isAllAccounts ? (includeArchivedAccounts ? "כל החשבונות כולל ארכיון" : "כל החשבונות הפעילים") : labelForAccount(selectedAccountId)}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">

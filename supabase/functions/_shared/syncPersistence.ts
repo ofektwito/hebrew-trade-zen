@@ -55,8 +55,10 @@ export async function loadAccountConfigs(supabase: SupabaseClient, accountIds: s
 
   const { data, error } = await supabase
     .from("accounts")
-    .select("id, external_account_id, commission_per_contract")
-    .in("external_account_id", accountIds);
+    .select("id, external_account_id, commission_per_contract, is_archived, cycle_status")
+    .in("external_account_id", accountIds)
+    .eq("is_archived", false)
+    .eq("cycle_status", "active");
 
   if (error) throw error;
 
@@ -78,7 +80,7 @@ export async function upsertProjectXAccounts(
     const externalAccountId = String(account.id);
     const { data: existing, error: selectError } = await supabase
       .from("accounts")
-      .select("id, commission_per_contract")
+      .select("id, commission_per_contract, account_status, is_archived, cycle_status, account_group_id, cycle_number, starting_balance, last_api_balance")
       .eq("external_source", "projectx")
       .eq("external_account_id", externalAccountId)
       .maybeSingle();
@@ -95,13 +97,32 @@ export async function upsertProjectXAccounts(
       broker_realized_pnl: accountRealizedPnl(account),
       broker_unrealized_pnl: accountUnrealizedPnl(account),
       broker_pnl_updated_at: new Date().toISOString(),
+      last_api_can_trade: booleanOrNull(account.canTrade),
+      last_api_is_visible: booleanOrNull(account.isVisible),
+      last_api_balance: account.balance ?? null,
+      last_api_status_raw: account as unknown as Record<string, unknown>,
       sync_status: "ok",
       sync_error: null,
       last_synced_at: new Date().toISOString(),
     };
 
+    if (existing?.id && shouldCreateResetCycle(account, existing as ExistingAccountRow)) {
+      await closeExistingCycle(supabase, existing as ExistingAccountRow, account, "Detected ProjectX reset on the same external account id.");
+      const inserted = await insertProjectXAccountCycle(supabase, payload, account, existing as ExistingAccountRow);
+      configs.push({
+        account_id: inserted.id as string,
+        external_account_id: externalAccountId,
+        commission_per_contract: Number(existing.commission_per_contract ?? 0),
+      });
+      continue;
+    }
+
     if (existing?.id) {
-      const { error } = await supabase.from("accounts").update(payload).eq("id", existing.id);
+      const { error } = await supabase.from("accounts").update({
+        ...payload,
+        account_status: nextAccountStatus(account, existing.account_status as string | null, Boolean(existing.is_archived)),
+        cycle_status: nextCycleStatus(existing.cycle_status as string | null, Boolean(existing.is_archived)),
+      }).eq("id", existing.id);
       if (error) throw error;
       configs.push({
         account_id: existing.id as string,
@@ -111,13 +132,7 @@ export async function upsertProjectXAccounts(
       continue;
     }
 
-    const { data: inserted, error } = await supabase
-      .from("accounts")
-      .insert({ ...payload, account_name: account.name, starting_balance: inferStartingBalance(account), is_active: true })
-      .select("id")
-      .single();
-
-    if (error) throw error;
+    const inserted = await insertProjectXAccountCycle(supabase, payload, account, null);
     configs.push({
       account_id: inserted.id as string,
       external_account_id: externalAccountId,
@@ -126,6 +141,122 @@ export async function upsertProjectXAccounts(
   }
 
   return configs;
+}
+
+type ExistingAccountRow = {
+  id: string;
+  commission_per_contract: number | null;
+  account_status: string | null;
+  is_archived: boolean | null;
+  cycle_status: string | null;
+  account_group_id: string | null;
+  cycle_number: number | null;
+  starting_balance: number | null;
+  last_api_balance: number | null;
+};
+
+async function insertProjectXAccountCycle(
+  supabase: SupabaseClient,
+  payload: Record<string, unknown>,
+  account: ProjectXAccount,
+  previousCycle: ExistingAccountRow | null,
+) {
+  const groupId = previousCycle?.account_group_id ?? previousCycle?.id ?? undefined;
+  const { data: inserted, error } = await supabase
+    .from("accounts")
+    .insert({
+      ...payload,
+      account_name: account.name,
+      account_type: account.accountType ?? null,
+      user_account_type: account.accountType ?? null,
+      account_group_id: groupId,
+      cycle_number: Number(previousCycle?.cycle_number ?? 0) + 1,
+      cycle_status: "active",
+      account_status: nextAccountStatus(account, null, false),
+      starting_balance: inferStartingBalance(account),
+      started_at: new Date().toISOString(),
+      is_active: true,
+      is_archived: false,
+    })
+    .select("id")
+    .single();
+
+  if (error) throw error;
+
+  if (!groupId) {
+    const { error: updateError } = await supabase
+      .from("accounts")
+      .update({ account_group_id: inserted.id })
+      .eq("id", inserted.id);
+    if (updateError) throw updateError;
+  }
+
+  return inserted;
+}
+
+async function closeExistingCycle(
+  supabase: SupabaseClient,
+  existing: ExistingAccountRow,
+  account: ProjectXAccount,
+  reason: string,
+) {
+  const { error } = await supabase
+    .from("accounts")
+    .update({
+      account_status: "archived",
+      cycle_status: "reset",
+      is_archived: true,
+      archived_at: new Date().toISOString(),
+      ended_at: new Date().toISOString(),
+      reset_at: new Date().toISOString(),
+      reset_reason: reason,
+      final_balance: existing.last_api_balance ?? account.balance ?? null,
+      final_pnl: existing.last_api_balance != null && existing.starting_balance != null
+        ? Number(existing.last_api_balance) - Number(existing.starting_balance)
+        : accountRealizedPnl(account),
+    })
+    .eq("id", existing.id);
+
+  if (error) throw error;
+}
+
+function shouldCreateResetCycle(account: ProjectXAccount, existing: ExistingAccountRow) {
+  if (existing.is_archived || existing.cycle_status === "reset" || existing.cycle_status === "archived" || existing.account_status === "failed") {
+    return account.canTrade === true;
+  }
+
+  const startingBalance = existing.starting_balance ?? inferStartingBalance(account);
+  if (startingBalance === null || existing.last_api_balance === null || account.balance === undefined || account.balance === null) {
+    return false;
+  }
+
+  const returnedToStart = Math.abs(Number(account.balance) - startingBalance) < 1;
+  const hadMeaningfulDrift = Math.abs(Number(existing.last_api_balance) - startingBalance) > 100;
+  return account.canTrade === true && returnedToStart && hadMeaningfulDrift;
+}
+
+function nextAccountStatus(account: ProjectXAccount, currentStatus: string | null, isArchived: boolean) {
+  if (isArchived || currentStatus === "archived" || currentStatus === "failed") {
+    return currentStatus ?? "archived";
+  }
+
+  if (account.canTrade === true && account.isVisible !== false) return "active";
+  if (account.canTrade === false) return "not_tradable";
+  if (account.isVisible === false) return "unknown";
+  return currentStatus ?? "unknown";
+}
+
+function nextCycleStatus(currentStatus: string | null, isArchived: boolean) {
+  if (isArchived || currentStatus === "reset" || currentStatus === "archived" || currentStatus === "failed") {
+    return currentStatus ?? "archived";
+  }
+
+  return "active";
+}
+
+function booleanOrNull(value: unknown) {
+  if (value === true || value === false) return value;
+  return null;
 }
 
 function accountRealizedPnl(account: ProjectXAccount) {
