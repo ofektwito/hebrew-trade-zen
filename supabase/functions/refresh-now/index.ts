@@ -3,6 +3,9 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { createAdminClient } from "../_shared/supabaseAdmin.ts";
 
 const RATE_LIMIT_SECONDS = 60;
+const STALE_SYNCING_SECONDS = 180;
+const MANUAL_REFRESH_LOOKBACK_HOURS = 48;
+const PROJECTX_SYNC_TIMEOUT_MS = 55_000;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -38,6 +41,9 @@ serve(async (req) => {
   } catch (error) {
     const message = safeErrorMessage(error);
     const status = error instanceof Error && error.name === "Unauthorized" ? 401 : 500;
+    if (status !== 401) {
+      await markRefreshError(supabase, message).catch(() => null);
+    }
     return jsonResponse({ ok: false, status: "error", message }, status);
   }
 });
@@ -81,12 +87,14 @@ function bearerToken(req: Request) {
 
 async function refreshRetryAfterSeconds(supabase: ReturnType<typeof createAdminClient>) {
   const syncStatus = await loadSyncStatus(supabase);
-  if (syncStatus?.status === "syncing") return RATE_LIMIT_SECONDS;
-
   const lastAttemptAt = syncStatus?.last_attempt_at ? new Date(syncStatus.last_attempt_at).getTime() : 0;
   if (!lastAttemptAt || Number.isNaN(lastAttemptAt)) return 0;
 
   const elapsedSeconds = Math.floor((Date.now() - lastAttemptAt) / 1000);
+  if (syncStatus?.status === "syncing") {
+    return elapsedSeconds > STALE_SYNCING_SECONDS ? 0 : Math.max(1, STALE_SYNCING_SECONDS - elapsedSeconds);
+  }
+
   return Math.max(0, RATE_LIMIT_SECONDS - elapsedSeconds);
 }
 
@@ -110,6 +118,9 @@ async function invokeProjectXSync() {
     throw new Error("ProjectX עדיין לא הוגדר");
   }
 
+  const rangeEnd = new Date();
+  const rangeStart = new Date(rangeEnd.getTime() - MANUAL_REFRESH_LOOKBACK_HOURS * 60 * 60 * 1000);
+
   const response = await fetch(`${supabaseUrl}/functions/v1/projectx-sync`, {
     method: "POST",
     headers: {
@@ -117,7 +128,11 @@ async function invokeProjectXSync() {
       Authorization: `Bearer ${serviceRoleKey}`,
       "x-projectx-sync-secret": syncSecret,
     },
-    body: JSON.stringify({}),
+    body: JSON.stringify({
+      rangeStart: rangeStart.toISOString(),
+      rangeEnd: rangeEnd.toISOString(),
+    }),
+    signal: AbortSignal.timeout(PROJECTX_SYNC_TIMEOUT_MS),
   });
 
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
@@ -128,12 +143,29 @@ async function invokeProjectXSync() {
   return payload;
 }
 
+async function markRefreshError(supabase: ReturnType<typeof createAdminClient>, message: string) {
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("sync_status").upsert({
+    id: "projectx",
+    status: "error",
+    last_attempt_at: now,
+    message,
+    is_reconnecting: false,
+    updated_at: now,
+  }, { onConflict: "id" });
+
+  if (error) throw error;
+}
+
 function numberOrZero(value: unknown) {
   const numberValue = Number(value ?? 0);
   return Number.isFinite(numberValue) ? numberValue : 0;
 }
 
 function safeErrorMessage(error: unknown) {
+  if (error instanceof DOMException && error.name === "TimeoutError") {
+    return "הרענון לקח יותר מדי זמן. נסה שוב בעוד דקה.";
+  }
   if (error instanceof Error) return error.message;
   return "הרענון נכשל";
 }

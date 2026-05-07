@@ -36,6 +36,8 @@ type RefreshNowResponse = {
   message?: string;
 };
 
+const REFRESH_NOW_TIMEOUT_MS = 70_000;
+
 export function AppShell() {
   const { location } = useRouterState();
   const path = location.pathname;
@@ -151,20 +153,27 @@ function SyncStatusIndicator() {
     setIsRefreshing(true);
     setSyncStatus((current) => current ? { ...current, status: "syncing", message: "מרענן..." } : current);
 
-    const { data, error } = await supabase.functions.invoke<RefreshNowResponse>("refresh-now", {
-      method: "POST",
-    });
+    try {
+      const { data, error } = await withTimeout(
+        supabase.functions.invoke<RefreshNowResponse>("refresh-now", { method: "POST" }),
+        REFRESH_NOW_TIMEOUT_MS,
+      );
 
-    await loadSyncStatus();
-    setIsRefreshing(false);
+      await loadSyncStatus();
 
-    if (error || data?.ok === false) {
-      toast.error(await refreshErrorMessage(error, data));
-      return;
+      if (error || data?.ok === false) {
+        toast.error(await refreshErrorMessage(error, data));
+        return;
+      }
+
+      await router.invalidate();
+      toast.success("הנתונים עודכנו");
+    } catch (error) {
+      await loadSyncStatus();
+      toast.error(refreshClientErrorMessage(error));
+    } finally {
+      setIsRefreshing(false);
     }
-
-    await router.invalidate();
-    toast.success("הנתונים עודכנו");
   };
 
   const presentation = useMemo(() => getSyncPresentation(syncStatus), [syncStatus]);
@@ -202,6 +211,33 @@ async function refreshErrorMessage(error: unknown, data: RefreshNowResponse | nu
   const payload = await context?.json?.().catch(() => null);
   if (payload?.status === "rate_limited") return "אפשר לרענן שוב בעוד דקה";
   if (payload?.message) return payload.message;
+
+  return "הרענון נכשל";
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error("refresh_timeout"));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
+function refreshClientErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message === "refresh_timeout") {
+    return "הרענון לוקח יותר מדי זמן. נסה שוב בעוד דקה.";
+  }
 
   return "הרענון נכשל";
 }
