@@ -1,23 +1,30 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { createAdminClient } from "../_shared/supabaseAdmin.ts";
+import { syncProjectX } from "../_shared/projectxSync.ts";
 
 const RATE_LIMIT_SECONDS = 60;
 const STALE_SYNCING_SECONDS = 180;
 const MANUAL_REFRESH_LOOKBACK_HOURS = 48;
-const PROJECTX_SYNC_TIMEOUT_MS = 90_000;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ ok: false, error: "Method not allowed." }, 405);
 
   const supabase = createAdminClient();
+  const requestId = crypto.randomUUID();
 
   try {
-    await requireOwnerUserId(req, supabase);
+    await requireOwnerUserId(req, supabase, requestId);
     const retryAfterSeconds = await refreshRetryAfterSeconds(supabase);
 
     if (retryAfterSeconds > 0) {
+      console.log(JSON.stringify({
+        scope: "refresh_now",
+        requestId,
+        event: "rate_limited",
+        retryAfterSeconds,
+      }));
       return jsonResponse({
         ok: false,
         status: "rate_limited",
@@ -27,8 +34,36 @@ serve(async (req) => {
     }
 
     const accountIds = await loadCurrentProjectXAccountIds(supabase);
-    const syncResult = await invokeProjectXSync(accountIds);
+    const rangeEnd = new Date();
+    const rangeStart = new Date(rangeEnd.getTime() - MANUAL_REFRESH_LOOKBACK_HOURS * 60 * 60 * 1000);
+
+    console.log(JSON.stringify({
+      scope: "refresh_now",
+      requestId,
+      event: "invoke_direct_sync",
+      ownerVerified: true,
+      currentAccountsCount: accountIds.length,
+      accounts: accountIds.map(maskAccountId),
+      rangeStart: rangeStart.toISOString(),
+      rangeEnd: rangeEnd.toISOString(),
+    }));
+
+    const syncResult = await syncProjectX(supabase, {
+      requestId,
+      accountIds,
+      rangeStart: rangeStart.toISOString(),
+      rangeEnd: rangeEnd.toISOString(),
+    });
     const syncStatus = await loadSyncStatus(supabase);
+
+    console.log(JSON.stringify({
+      scope: "refresh_now",
+      requestId,
+      event: "success",
+      accountsSynced: syncResult.accountsSynced,
+      tradesUpserted: syncResult.tradesUpserted,
+      duplicatesSkipped: syncResult.duplicatesSkipped,
+    }));
 
     return jsonResponse({
       ok: true,
@@ -45,21 +80,32 @@ serve(async (req) => {
     if (status !== 401) {
       await markRefreshError(supabase, message).catch(() => null);
     }
+    console.log(JSON.stringify({
+      scope: "refresh_now",
+      requestId,
+      event: "error",
+      errorName: error instanceof Error ? error.name : typeof error,
+      message,
+    }));
     return jsonResponse({ ok: false, status: "error", message }, status);
   }
 });
 
-async function requireOwnerUserId(req: Request, supabase: ReturnType<typeof createAdminClient>) {
+async function requireOwnerUserId(
+  req: Request,
+  supabase: ReturnType<typeof createAdminClient>,
+  requestId: string,
+) {
   const token = bearerToken(req);
   if (!token) {
-    const error = new Error("נדרשת התחברות כדי לרענן נתונים");
+    const error = new Error("פג תוקף ההתחברות, התחבר מחדש");
     error.name = "Unauthorized";
     throw error;
   }
 
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) {
-    const authError = new Error("נדרשת התחברות כדי לרענן נתונים");
+    const authError = new Error("פג תוקף ההתחברות, התחבר מחדש");
     authError.name = "Unauthorized";
     throw authError;
   }
@@ -76,6 +122,14 @@ async function requireOwnerUserId(req: Request, supabase: ReturnType<typeof crea
     ownerError.name = "Unauthorized";
     throw ownerError;
   }
+
+  console.log(JSON.stringify({
+    scope: "refresh_now",
+    requestId,
+    event: "owner_verified",
+    authenticated: true,
+    ownerVerified: true,
+  }));
 
   return data.user.id;
 }
@@ -130,45 +184,10 @@ async function loadCurrentProjectXAccountIds(supabase: ReturnType<typeof createA
   )];
 
   if (accountIds.length === 0) {
-    throw new Error("לא נמצאו חשבונות ProjectX נוכחיים לרענון");
+    throw new Error("לא נמצאו חשבונות נוכחיים לסנכרון");
   }
 
   return accountIds;
-}
-
-async function invokeProjectXSync(accountIds: string[]) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")?.replace(/\/+$/, "");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const syncSecret = Deno.env.get("PROJECTX_SYNC_SECRET");
-
-  if (!supabaseUrl || !serviceRoleKey || !syncSecret) {
-    throw new Error("ProjectX עדיין לא הוגדר");
-  }
-
-  const rangeEnd = new Date();
-  const rangeStart = new Date(rangeEnd.getTime() - MANUAL_REFRESH_LOOKBACK_HOURS * 60 * 60 * 1000);
-
-  const response = await fetch(`${supabaseUrl}/functions/v1/projectx-sync`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${serviceRoleKey}`,
-      "x-projectx-sync-secret": syncSecret,
-    },
-    body: JSON.stringify({
-      rangeStart: rangeStart.toISOString(),
-      rangeEnd: rangeEnd.toISOString(),
-      accountIds,
-    }),
-    signal: AbortSignal.timeout(PROJECTX_SYNC_TIMEOUT_MS),
-  });
-
-  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!response.ok || payload.ok === false) {
-    throw new Error(typeof payload.error === "string" ? payload.error : "הרענון נכשל");
-  }
-
-  return payload;
 }
 
 async function markRefreshError(supabase: ReturnType<typeof createAdminClient>, message: string) {
@@ -191,9 +210,11 @@ function numberOrZero(value: unknown) {
 }
 
 function safeErrorMessage(error: unknown) {
-  if (error instanceof DOMException && error.name === "TimeoutError") {
-    return "הרענון לקח יותר מדי זמן. נסה שוב בעוד דקה.";
-  }
   if (error instanceof Error) return error.message;
   return "הרענון נכשל";
+}
+
+function maskAccountId(accountId: string) {
+  if (accountId.length <= 4) return `${accountId.slice(0, 1)}***`;
+  return `${accountId.slice(0, 2)}***${accountId.slice(-2)}`;
 }
