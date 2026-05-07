@@ -24,6 +24,7 @@ type SyncRequest = {
   rangeStart?: string;
   rangeEnd?: string;
   dryRun?: boolean;
+  accountIds?: string[];
 };
 
 serve(async (req) => {
@@ -64,7 +65,8 @@ serve(async (req) => {
     }
 
     const client = new ProjectXClient(readProjectXConfig());
-    let accountIds = readProjectXAccountIds();
+    let accountIds = sanitizeAccountIds(body.accountIds);
+    if (accountIds.length === 0) accountIds = readProjectXAccountIds();
     let accountConfigs: AccountConfig[] = [];
     const sampleAccountPayloads: Array<Record<string, unknown>> = [];
     let activeAccountsCount: number | null = null;
@@ -86,7 +88,14 @@ serve(async (req) => {
           }))
         : await upsertProjectXAccounts(supabase, allAccounts);
     } else {
-      accountConfigs = await loadAccountConfigs(supabase, accountIds);
+      const activeAccounts = await client.fetchAccounts(true);
+      activeAccountsCount = activeAccounts.length;
+      const allAccounts = await fetchAllAccountsSafely(client, activeAccounts);
+      const requestedAccounts = allAccounts.filter((account) => accountIds.includes(String(account.id)));
+      sampleAccountPayloads.push(...requestedAccounts.slice(0, 1) as Array<Record<string, unknown>>);
+      accountConfigs = !dryRun && requestedAccounts.length > 0
+        ? await upsertProjectXAccounts(supabase, requestedAccounts)
+        : await loadAccountConfigs(supabase, accountIds);
     }
 
     const allFills: RawFillRow[] = [];
@@ -237,6 +246,15 @@ function safeErrorMessage(error: unknown) {
 function maskAccountId(accountId: string) {
   if (accountId.length <= 4) return `${accountId.slice(0, 1)}***`;
   return `${accountId.slice(0, 2)}***${accountId.slice(-2)}`;
+}
+
+function sanitizeAccountIds(accountIds: unknown) {
+  if (!Array.isArray(accountIds)) return [];
+  return [...new Set(
+    accountIds
+      .map((accountId) => String(accountId).trim())
+      .filter((accountId) => /^\d+$/.test(accountId)),
+  )];
 }
 
 function sampleFieldNames(payloads: Array<Record<string, unknown>> | undefined) {

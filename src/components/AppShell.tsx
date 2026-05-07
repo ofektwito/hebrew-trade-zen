@@ -36,7 +36,7 @@ type RefreshNowResponse = {
   message?: string;
 };
 
-const REFRESH_NOW_TIMEOUT_MS = 70_000;
+const REFRESH_NOW_TIMEOUT_MS = 110_000;
 
 export function AppShell() {
   const { location } = useRouterState();

@@ -5,7 +5,7 @@ import { createAdminClient } from "../_shared/supabaseAdmin.ts";
 const RATE_LIMIT_SECONDS = 60;
 const STALE_SYNCING_SECONDS = 180;
 const MANUAL_REFRESH_LOOKBACK_HOURS = 48;
-const PROJECTX_SYNC_TIMEOUT_MS = 55_000;
+const PROJECTX_SYNC_TIMEOUT_MS = 90_000;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -26,7 +26,8 @@ serve(async (req) => {
       }, 429);
     }
 
-    const syncResult = await invokeProjectXSync();
+    const accountIds = await loadCurrentProjectXAccountIds(supabase);
+    const syncResult = await invokeProjectXSync(accountIds);
     const syncStatus = await loadSyncStatus(supabase);
 
     return jsonResponse({
@@ -109,7 +110,33 @@ async function loadSyncStatus(supabase: ReturnType<typeof createAdminClient>) {
   return data as { status: string | null; last_attempt_at: string | null; last_success_at: string | null } | null;
 }
 
-async function invokeProjectXSync() {
+async function loadCurrentProjectXAccountIds(supabase: ReturnType<typeof createAdminClient>) {
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("external_account_id")
+    .eq("external_source", "projectx")
+    .eq("is_current_account", true)
+    .eq("show_in_main_selector", true)
+    .eq("is_archived", false)
+    .eq("cycle_status", "active")
+    .not("external_account_id", "is", null);
+
+  if (error) throw error;
+
+  const accountIds = [...new Set(
+    (data ?? [])
+      .map((account) => String(account.external_account_id ?? "").trim())
+      .filter((accountId) => /^\d+$/.test(accountId)),
+  )];
+
+  if (accountIds.length === 0) {
+    throw new Error("לא נמצאו חשבונות ProjectX נוכחיים לרענון");
+  }
+
+  return accountIds;
+}
+
+async function invokeProjectXSync(accountIds: string[]) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")?.replace(/\/+$/, "");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const syncSecret = Deno.env.get("PROJECTX_SYNC_SECRET");
@@ -131,6 +158,7 @@ async function invokeProjectXSync() {
     body: JSON.stringify({
       rangeStart: rangeStart.toISOString(),
       rangeEnd: rangeEnd.toISOString(),
+      accountIds,
     }),
     signal: AbortSignal.timeout(PROJECTX_SYNC_TIMEOUT_MS),
   });
